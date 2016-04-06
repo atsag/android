@@ -52,6 +52,7 @@ import com.owncloud.android.lib.common.utils.Log_OC;
 import com.owncloud.android.lib.resources.shares.ShareType;
 import com.owncloud.android.lib.resources.status.OwnCloudVersion;
 import com.owncloud.android.lib.resources.users.GetRemoteUserNameOperation;
+import com.owncloud.android.operations.CheckCurrentCredentialsOperation;
 import com.owncloud.android.operations.CopyFileOperation;
 import com.owncloud.android.operations.CreateFolderOperation;
 import com.owncloud.android.operations.CreateShareViaLinkOperation;
@@ -64,11 +65,11 @@ import com.owncloud.android.operations.RenameFileOperation;
 import com.owncloud.android.operations.SynchronizeFileOperation;
 import com.owncloud.android.operations.SynchronizeFolderOperation;
 import com.owncloud.android.operations.UnshareOperation;
+import com.owncloud.android.operations.UpdateSharePermissionsOperation;
 import com.owncloud.android.operations.UpdateShareViaLinkOperation;
 import com.owncloud.android.operations.common.SyncOperation;
 
 import java.io.IOException;
-import java.util.Calendar;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -94,8 +95,9 @@ public class OperationsService extends Service {
     public static final String EXTRA_SHARE_TYPE = "SHARE_TYPE";
     public static final String EXTRA_SHARE_WITH = "SHARE_WITH";
     public static final String EXTRA_SHARE_EXPIRATION_DATE_IN_MILLIS = "SHARE_EXPIRATION_YEAR";
-    public static final String EXTRA_SHARE_EXPIRATION_MONTH_OF_YEAR = "SHARE_EXPIRATION_MONTH_OF_YEAR";
-    public static final String EXTRA_SHARE_EXPIRATION_DAY_OF_MONTH = "SHARE_EXPIRATION_DAY_OF_MONTH";
+    public static final String EXTRA_SHARE_PERMISSIONS = "SHARE_PERMISSIONS";
+    public static final String EXTRA_SHARE_PUBLIC_UPLOAD = "SHARE_PUBLIC_UPLOAD";
+    public static final String EXTRA_SHARE_ID = "SHARE_ID";
 
     public static final String EXTRA_COOKIE = "COOKIE";
 
@@ -113,6 +115,7 @@ public class OperationsService extends Service {
     public static final String ACTION_SYNC_FOLDER = "SYNC_FOLDER";
     public static final String ACTION_MOVE_FILE = "MOVE_FILE";
     public static final String ACTION_COPY_FILE = "COPY_FILE";
+    public static final String ACTION_CHECK_CURRENT_CREDENTIALS = "CHECK_CURRENT_CREDENTIALS";
 
     public static final String ACTION_OPERATION_ADDED = OperationsService.class.getName() +
             ".OPERATION_ADDED";
@@ -571,11 +574,12 @@ public class OperationsService extends Service {
 
                 } else if (ACTION_UPDATE_SHARE.equals(action)) {
                     String remotePath = operationIntent.getStringExtra(EXTRA_REMOTE_PATH);
-                    if (remotePath.length() > 0) {
+                    long shareId = operationIntent.getLongExtra(EXTRA_SHARE_ID, -1);
+                    if (remotePath != null && remotePath.length() > 0) {
                         operation = new UpdateShareViaLinkOperation(remotePath);
 
                         String password = operationIntent.getStringExtra(EXTRA_SHARE_PASSWORD);
-                        ((UpdateShareViaLinkOperation)operation).setPassword(password);
+                        ((UpdateShareViaLinkOperation) operation).setPassword(password);
 
                         long expirationDate = operationIntent.getLongExtra(
                                 EXTRA_SHARE_EXPIRATION_DATE_IN_MILLIS,
@@ -584,6 +588,14 @@ public class OperationsService extends Service {
                         ((UpdateShareViaLinkOperation)operation).setExpirationDate(
                                 expirationDate
                         );
+
+                        boolean publicUpload = operationIntent.getBooleanExtra(EXTRA_SHARE_PUBLIC_UPLOAD, false);
+                        ((UpdateShareViaLinkOperation) operation).setPublicUpload(publicUpload);
+
+                    } else if (shareId > 0) {
+                        operation = new UpdateSharePermissionsOperation(shareId);
+                        int permissions = operationIntent.getIntExtra(EXTRA_SHARE_PERMISSIONS, 1);
+                        ((UpdateSharePermissionsOperation)operation).setPermissions(permissions);
                     }
 
                 } else if (action.equals(ACTION_CREATE_SHARE_WITH_SHAREE)) {
@@ -591,11 +603,13 @@ public class OperationsService extends Service {
                     String remotePath = operationIntent.getStringExtra(EXTRA_REMOTE_PATH);
                     String shareeName = operationIntent.getStringExtra(EXTRA_SHARE_WITH);
                     ShareType shareType = (ShareType) operationIntent.getSerializableExtra(EXTRA_SHARE_TYPE);
+                    int permissions = operationIntent.getIntExtra(EXTRA_SHARE_PERMISSIONS, -1);
                     if (remotePath.length() > 0) {
                         operation = new CreateShareWithShareeOperation(
                                 remotePath,
                                 shareeName,
-                                shareType
+                                shareType,
+                                permissions
                         );
                     }
 
@@ -681,6 +695,10 @@ public class OperationsService extends Service {
                     String remotePath = operationIntent.getStringExtra(EXTRA_REMOTE_PATH);
                     String newParentPath = operationIntent.getStringExtra(EXTRA_NEW_PARENT_PATH);
                     operation = new CopyFileOperation(remotePath, newParentPath, account);
+
+                } else if (action.equals(ACTION_CHECK_CURRENT_CREDENTIALS)) {
+                    // Check validity of currently stored credentials for a given account
+                    operation = new CheckCurrentCredentialsOperation(account);
                 }
             }
                 

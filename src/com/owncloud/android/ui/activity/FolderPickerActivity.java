@@ -1,7 +1,7 @@
 /**
  *   ownCloud Android client application
  *
- *   Copyright (C) 2015 ownCloud Inc.
+ *   Copyright (C) 2016 ownCloud Inc.
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License version 2,
@@ -20,7 +20,6 @@
 package com.owncloud.android.ui.activity;
 
 import android.accounts.Account;
-import android.accounts.AccountManager;
 import android.accounts.AuthenticatorException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -44,11 +43,6 @@ import android.widget.Toast;
 
 import com.owncloud.android.R;
 import com.owncloud.android.datamodel.OCFile;
-import com.owncloud.android.lib.common.OwnCloudAccount;
-import com.owncloud.android.lib.common.OwnCloudClient;
-import com.owncloud.android.lib.common.OwnCloudClientManagerFactory;
-import com.owncloud.android.lib.common.OwnCloudCredentials;
-import com.owncloud.android.lib.common.accounts.AccountUtils.AccountNotFoundException;
 import com.owncloud.android.lib.common.operations.RemoteOperation;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult.ResultCode;
@@ -154,6 +148,7 @@ public class FolderPickerActivity extends FileActivity implements FileFragment.C
         Bundle args = new Bundle();
         args.putBoolean(OCFileListFragment.ARG_JUST_FOLDERS, true);
         args.putBoolean(OCFileListFragment.ARG_ALLOW_CONTEXTUAL_ACTIONS, false);
+        args.putBoolean(OCFileListFragment.ARG_HIDE_FAB, true);
         listOfFiles.setArguments(args);
         FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
         transaction.add(R.id.fragment_container, listOfFiles, TAG_LIST_OF_FOLDERS);
@@ -262,7 +257,6 @@ public class FolderPickerActivity extends FileActivity implements FileFragment.C
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.main_menu, menu);
-        menu.findItem(R.id.action_upload).setVisible(false);
         menu.findItem(R.id.action_sort).setVisible(false);
         return true;
     }
@@ -379,6 +373,7 @@ public class FolderPickerActivity extends FileActivity implements FileFragment.C
                 data.putExtra(EXTRA_FILE, targetFile);
             }
             setResult(RESULT_OK, data);
+
             finish();
         }
     }
@@ -486,37 +481,11 @@ public class FolderPickerActivity extends FileActivity implements FileFragment.C
                                     equals(event) &&
                                 /// TODO refactor and make common
                                 synchResult != null && !synchResult.isSuccess() &&  
-                                (synchResult.getCode() == ResultCode.UNAUTHORIZED   || 
-                                    synchResult.isIdPRedirection()                  ||
-                                    (synchResult.isException() && synchResult.getException() 
+                                (ResultCode.UNAUTHORIZED.equals(synchResult.getCode()) ||
+                                    (synchResult.isException() && synchResult.getException()
                                             instanceof AuthenticatorException))) {
 
-                            try {
-                                OwnCloudClient client;
-                                OwnCloudAccount ocAccount =
-                                        new OwnCloudAccount(getAccount(), context);
-                                client = (OwnCloudClientManagerFactory.getDefaultSingleton().
-                                        removeClientFor(ocAccount));
-
-                                if (client != null) {
-                                    OwnCloudCredentials cred = client.getCredentials();
-                                    if (cred != null) {
-                                        AccountManager am = AccountManager.get(context);
-                                        if (cred.authTokenExpires()) {
-                                            am.invalidateAuthToken(
-                                                    getAccount().type,
-                                                    cred.getAuthToken()
-                                            );
-                                        } else {
-                                            am.clearPassword(getAccount());
-                                        }
-                                    }
-                                }
-                                requestCredentialsUpdate();
-
-                            } catch (AccountNotFoundException e) {
-                                Log_OC.e(TAG, "Account " + getAccount() + " was removed!", e);
-                            }
+                            requestCredentialsUpdate(context);
 
                         }
                     }
