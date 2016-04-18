@@ -46,7 +46,6 @@ import android.preference.PreferenceManager;
 import android.provider.OpenableColumns;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GravityCompat;
@@ -68,7 +67,6 @@ import com.owncloud.android.files.services.FileDownloader;
 import com.owncloud.android.files.services.FileDownloader.FileDownloaderBinder;
 import com.owncloud.android.files.services.FileUploader;
 import com.owncloud.android.files.services.FileUploader.FileUploaderBinder;
-import com.owncloud.android.lib.common.network.CertificateCombinedException;
 import com.owncloud.android.lib.common.operations.RemoteOperation;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult.ResultCode;
@@ -83,9 +81,6 @@ import com.owncloud.android.operations.SynchronizeFileOperation;
 import com.owncloud.android.operations.UploadFileOperation;
 import com.owncloud.android.services.observer.FileObserverService;
 import com.owncloud.android.syncadapter.FileSyncAdapter;
-import com.owncloud.android.ui.dialog.ConfirmationDialogFragment;
-import com.owncloud.android.ui.dialog.SslUntrustedCertDialog;
-import com.owncloud.android.ui.dialog.SslUntrustedCertDialog.OnSslUntrustedCertListener;
 import com.owncloud.android.ui.fragment.FileDetailFragment;
 import com.owncloud.android.ui.fragment.FileFragment;
 import com.owncloud.android.ui.fragment.OCFileListFragment;
@@ -107,9 +102,9 @@ import com.owncloud.android.MainApp.*;
  * Displays, what files the user has available in his ownCloud. This is the main view.
  */
 
-public class FileDisplayActivity extends HookActivity implements
-        FileFragment.ContainerActivity,
-        OnSslUntrustedCertListener, OnEnforceableRefreshListener {
+public class FileDisplayActivity extends HookActivity
+        implements FileFragment.ContainerActivity,
+        OnEnforceableRefreshListener {
 
     private SyncBroadcastReceiver mSyncBroadcastReceiver;
     private UploadFinishReceiver mUploadFinishReceiver;
@@ -140,10 +135,6 @@ public class FileDisplayActivity extends HookActivity implements
     private OCFile mWaitingToPreview;
 
     private boolean mSyncInProgress = false;
-
-    private static String DIALOG_UNTRUSTED_CERT = "DIALOG_UNTRUSTED_CERT";
-    private static String DIALOG_UPLOAD_SOURCE = "DIALOG_UPLOAD_SOURCE";
-    private static String DIALOG_CERT_NOT_SAVED = "DIALOG_CERT_NOT_SAVED";
 
     private OCFile mWaitingToSend;
 
@@ -1056,14 +1047,21 @@ public class FileDisplayActivity extends HookActivity implements
                                         .equals(event));
 
                         if (RefreshFolderOperation.EVENT_SINGLE_FOLDER_CONTENTS_SYNCED.
-                                equals(event) &&/// TODO refactor and make common
+                            equals(event) &&/// TODO refactor and make common
 
-                                synchResult != null && !synchResult.isSuccess() &&
-                                (ResultCode.UNAUTHORIZED.equals(synchResult.getCode()) ||
-                                        (synchResult.isException() && synchResult.getException()
-                                                instanceof AuthenticatorException))) {
+                            synchResult != null && !synchResult.isSuccess()) {
 
-                            requestCredentialsUpdate(context);
+                            if(ResultCode.UNAUTHORIZED.equals(synchResult.getCode()) ||
+                                (synchResult.isException() && synchResult.getException()
+                                    instanceof AuthenticatorException)) {
+
+                                requestCredentialsUpdate(context);
+
+                            } else if(RemoteOperationResult.ResultCode.SSL_RECOVERABLE_PEER_UNVERIFIED.equals(
+                                synchResult.getCode())) {
+
+                                showUntrustedCertDialog(synchResult);
+                            }
 
                         }
 
@@ -1388,25 +1386,6 @@ public class FileDisplayActivity extends HookActivity implements
         }
     }
 
-    @Override
-    public void onSavedCertificate() {
-        startSyncFolderOperation(getCurrentDir(), false);
-    }
-
-
-    @Override
-    public void onFailedSavingCertificate() {
-        ConfirmationDialogFragment dialog = ConfirmationDialogFragment.newInstance(
-                R.string.ssl_validator_not_saved, new String[]{}, R.string.common_ok, -1, -1
-        );
-        dialog.show(getSupportFragmentManager(), DIALOG_CERT_NOT_SAVED);
-    }
-
-    @Override
-    public void onCancelCertificate() {
-        // nothing to do
-    }
-
     /**
      * Updates the view associated to the activity after the finish of some operation over files
      * in the current account.
@@ -1469,8 +1448,8 @@ public class FileDisplayActivity extends HookActivity implements
     private void onRemoveFileOperationFinish(RemoveFileOperation operation,
                                              RemoteOperationResult result) {
         Toast msg = Toast.makeText(this,
-                ErrorMessageAdapter.getErrorCauseMessage(result, operation, getResources()),
-                Toast.LENGTH_LONG);
+            ErrorMessageAdapter.getErrorCauseMessage(result, operation, getResources()),
+            Toast.LENGTH_LONG);
         msg.show();
 
         if (result.isSuccess()) {
@@ -1670,19 +1649,9 @@ public class FileDisplayActivity extends HookActivity implements
         }
     }
 
-
-    private OCFile getCurrentDir() {
-        OCFile file = getFile();
-        if (file != null) {
-            if (file.isFolder()) {
-                return file;
-            } else if (getStorageManager() != null) {
-                String parentPath = file.getRemotePath().substring(0,
-                        file.getRemotePath().lastIndexOf(file.getFileName()));
-                return getStorageManager().getFileByPath(parentPath);
-            }
-        }
-        return null;
+    @Override
+    public void onSavedCertificate() {
+        startSyncFolderOperation(getCurrentDir(), false);
     }
 
     /**
@@ -1739,18 +1708,6 @@ public class FileDisplayActivity extends HookActivity implements
                 DELAY_TO_REQUEST_OPERATIONS_LATER
         );
 
-    }
-
-    /**
-     * Show untrusted cert dialog
-     */
-    public void showUntrustedCertDialog(RemoteOperationResult result) {
-        // Show a dialog with the certificate info
-        SslUntrustedCertDialog dialog = SslUntrustedCertDialog.newInstanceForFullSslError(
-                (CertificateCombinedException) result.getException());
-        FragmentManager fm = getSupportFragmentManager();
-        FragmentTransaction ft = fm.beginTransaction();
-        dialog.show(ft, DIALOG_UNTRUSTED_CERT);
     }
 
     private void requestForDownload(OCFile file) {
