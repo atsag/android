@@ -51,6 +51,7 @@ import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v7.app.AlertDialog;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -58,6 +59,7 @@ import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import com.owncloud.android.MQTTService;
 import com.owncloud.android.MainApp;
 import com.owncloud.android.R;
 import com.owncloud.android.datamodel.FileDataStorageManager;
@@ -100,6 +102,7 @@ import com.owncloud.android.utils.UriUtils;
 
 import java.io.File;
 
+import com.owncloud.android.MainApp.*;
 /**
  * Displays, what files the user has available in his ownCloud. This is the main view.
  */
@@ -144,7 +147,12 @@ public class FileDisplayActivity extends HookActivity implements
 
     private OCFile mWaitingToSend;
 
+    /*My class variables start here*/
 
+
+
+
+    /*My class variables end here*/
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log_OC.v(TAG, "onCreate() start");
@@ -932,6 +940,23 @@ public class FileDisplayActivity extends HookActivity implements
     @Override
     protected void onPause() {
         Log_OC.v(TAG, "onPause() start");
+
+        //My code begins here
+//      startService(mqttService);
+//      bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
+
+       // bindService(MainApp.mqttService,MainApp.mConnection,Context.BIND_AUTO_CREATE);
+        MainApp.mService.publishMessageToTopic("OFF");                      //turn off the hard disk
+        Log_OC.v(TAG, "Hard disk removed");
+
+        //MainApp.mService.unbindService(MainApp.mConnection);
+        //MainApp.mService.stopSelf();
+
+       // stopService(MainApp.mqttService);
+       // unbindService(MainApp.mConnection);
+
+        //My code ends here
+
         if (mSyncBroadcastReceiver != null) {
             unregisterReceiver(mSyncBroadcastReceiver);
             //LocalBroadcastManager.getInstance(this).unregisterReceiver(mSyncBroadcastReceiver);

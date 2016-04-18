@@ -202,6 +202,7 @@
         </receiver>
 
         <service android:name=".services.observer.FileObserverService" />
+        <service android:name=".MQTTService" />
 
         <activity
             android:name=".ui.activity.CopyToClipboardActivity"
