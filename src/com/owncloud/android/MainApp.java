@@ -71,39 +71,7 @@ public class MainApp extends Application {
     // TODO better place
     // private static boolean mOnlyOnDevice = false;
 
-    // New (my) class variables start here
-    public static Intent mqttService;
-    public static MQTTService mService;
-    private static boolean mBound;
-    public static ServiceConnection mConnection = new ServiceConnection() {
 
-        @Override
-        public void onServiceConnected(ComponentName className,
-                                       IBinder service) {
-
-            Log.d(TAG, "Inside onServiceConnected");
-            // We've bound to LocalService, cast the IBinder and get LocalService instance
-
-            LocalBinder binder = (LocalBinder) service;
-            mService = (MQTTService)binder.getService();
-            //Debug
-            //System.out.println(mService.toString());
-            // mService = ((MQTTService.java.LocalBinder) service).getService();
-
-            mBound = true;
-            String message = "ON";
-            mService.publishMessageToTopic(message);
-//            mService.stopSelf();
-//            mService.unbindService(mConnection);
-//            unbindService(mConnection);
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName arg0) {
-            mBound = false;
-        }
-    };
-// New class variables end here
 
     public void onCreate(){
         super.onCreate();
@@ -131,23 +99,6 @@ public class MainApp extends Application {
             Log_OC.startLogging();
             Log_OC.d("Debug", "start logging");
         }
-//-----------------------------------Modifications start
-        // Segment of modifications
-        Toast.makeText(this,"Owncloud Application has started",Toast.LENGTH_LONG).show();
-
-
-//        final com.imsight.com.imsight.androidmqtt.androidmqtt.MQTTService.java mService;
-//        final mqttservice = new Intent(this, MQTTService.class);
-        mqttService= new Intent(MainApp.mContext, MQTTService.class);
-        startService(mqttService);
-/*WATCH OUT! NEXT LINE SHOULD NOT BE COMMENTED!*/
-
-        bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
-//below line stops the service.
-//        stopService(mqttService);
-
-
-//-----------------------------------modifications end
 
 
 
@@ -196,13 +147,7 @@ public class MainApp extends Application {
         }
     }
 
-    public void publishMessage(String message){
-        //if (mBound) for(int i=1;i<10;i++){System.out.println("Supposedly connected");}
-        //while (mService==null){System.out.println("NULL!");}
-        mService.publishMessageToTopic(message);
-        unbindService(mConnection);
-       // stopService(mqttService);
-    }
+
 
     public static Context getAppContext() {
         return MainApp.mContext;

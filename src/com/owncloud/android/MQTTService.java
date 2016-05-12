@@ -1,6 +1,7 @@
 package com.owncloud.android;
 
 import android.app.AlarmManager;
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -9,13 +10,17 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.Parcel;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
+import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 import android.widget.Toast;
 //import android.*;
@@ -27,6 +32,7 @@ import com.ibm.mqtt.MqttNotConnectedException;
 import com.ibm.mqtt.MqttPersistence;
 import com.ibm.mqtt.MqttPersistenceException;
 import com.ibm.mqtt.MqttSimpleCallback;
+import com.owncloud.android.ui.activity.RemountDiskActivity;
 
 import java.lang.ref.WeakReference;
 import java.util.Calendar;
@@ -168,7 +174,8 @@ public class MQTTService extends Service implements MqttSimpleCallback
     public void onCreate() 
     {
         super.onCreate();
-        
+
+
         // reset status variable to initial state
         connectionStatus = MQTTConnectionStatus.INITIAL;
         
@@ -264,7 +271,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
         
         // if the Service was already running and we're already connected - we 
         //   don't need to do anything 
-        if (isAlreadyConnected() == false) 
+        if (!isAlreadyConnected())
         {
             // set the status to show we're trying to connect
             connectionStatus = MQTTConnectionStatus.CONNECTING;
@@ -342,7 +349,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
         }
     }
  /**/
-    /*mycomment
+    /*mycomment*/
 
     @Override
 
@@ -368,7 +375,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
             mBinder = null;
         }
     }
-        mycomment ends*/
+        /*mycomment ends*/
 
 
     /************************************************************************/
@@ -407,34 +414,45 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
 
 
-    /*
+
     private void notifyUser(String alert, String title, String body)
     {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        Notification notification = new Notification(R.drawable.ic_mqtt, alert,
-                                                     System.currentTimeMillis());
+
+        Intent notificationIntent = new Intent(this, MQTTActivity.class);
+        PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
+                notificationIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(
+                this);
+        Notification notification = builder.setContentIntent(contentIntent)
+                .setSmallIcon(R.drawable.ic_ok).setWhen(System.currentTimeMillis())
+                .setAutoCancel(true).setContentTitle(title)
+                .setContentText(body).build();
+
+
+        /*Notification notification = new Notification(R.drawable.ic_ok, alert,
+                                                     System.currentTimeMillis());*/
         notification.defaults |= Notification.DEFAULT_LIGHTS;
         notification.defaults |= Notification.DEFAULT_SOUND;
-        notification.defaults |= Notification.DEFAULT_VIBRATE;
+ //Will not allow additional permissions       notification.defaults |= Notification.DEFAULT_VIBRATE;
         notification.flags |= Notification.FLAG_AUTO_CANCEL;        
         notification.ledARGB = Color.MAGENTA;
-        Intent notificationIntent = new Intent(this, MQTTActivity.class);
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, 
-                                                                notificationIntent, 
-                                                                PendingIntent.FLAG_UPDATE_CURRENT);
-        notification.setLatestEventInfo(this, title, body, contentIntent);
+
+
         nm.notify(MQTT_NOTIFICATION_UPDATE, notification);        
     }
-   */
+
 
 
     //replacement method for notifyUser defined above
 
-    private void notifyUser(String alert, String title, String body)
+    /*private void notifyUser(String alert, String title, String body)
     {
         Toast.makeText(this,title.toUpperCase()+" "+body,Toast.LENGTH_LONG).show();
 
-    }
+    }*/
     
     /************************************************************************/
     /*    METHODS - binding that allows access from the Actitivy            */
@@ -533,13 +551,10 @@ public class MQTTService extends Service implements MqttSimpleCallback
      */
 
 
-    public void connectionLost(){
+    /*public void connectionLost(){
 
-    }
-    public void publishArrived(String topic, byte[] payloadbytes, int qos, boolean retained){
-
-    }
-    /*mycomment
+    }*/
+    /*Maybe change to above?*/
 
     public void connectionLost() throws Exception
     {
@@ -599,7 +614,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
         wl.release();
     }
 
-   end of my comment*/
+  /* end of my comment*/
 
 
 
@@ -607,7 +622,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
      *   callback - called when we receive a message from the server 
      */
 
-    /*one more of my comments
+    /*one more of my comments*/
 
     public void publishArrived(String topic, byte[] payloadbytes, int qos, boolean retained)  
     {
@@ -640,9 +655,17 @@ public class MQTTService extends Service implements MqttSimpleCallback
             //
             // inform the user (for times when the Activity UI isn't running) 
             //   that there is new data available
-            notifyUser("New data received", topic, messageBody);
+
+            notifyUser("New data received Edited", topic, messageBody);
         }
- 
+
+        /*
+
+
+
+
+        */
+
         // receiving this message will have kept the connection alive for us, so
         //  we take advantage of this to postpone the next scheduled ping
         scheduleNextPing();
@@ -652,7 +675,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
         wl.release();
     }
 
-    mycomment ends here*/
+    /*mycomment ends here*/
     /************************************************************************/
     /*    METHODS - wrappers for some of the MQTT methods that we use       */
     /************************************************************************/

@@ -29,6 +29,13 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <!--Button
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Remount Disk"
+            android:id="@+id/remount_button"
+            android:layout_gravity="center_horizontal" !-->
+
         <ProgressBar android:id="@+id/progressBar"
             android:layout_width="match_parent"
             android:layout_height="4dp"

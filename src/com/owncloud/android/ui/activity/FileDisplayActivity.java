@@ -42,6 +42,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.provider.OpenableColumns;
 import android.support.design.widget.Snackbar;
@@ -51,12 +52,17 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.widget.PopupWindow;
 
 import com.owncloud.android.MQTTService;
 import com.owncloud.android.MainApp;
@@ -140,6 +146,43 @@ public class FileDisplayActivity extends HookActivity
 
     /*My class variables start here*/
 
+    // New (my) class variables start here
+    public static Intent mqttService;
+    public static MQTTService mService;
+    private static boolean mBound;
+    public static ServiceConnection mConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+
+            Log.d(TAG, "Inside onServiceConnected");
+            // We've bound to LocalService, cast the IBinder and get LocalService instance
+
+            MQTTService.LocalBinder binder = (MQTTService.LocalBinder) service;
+            mService = (MQTTService)binder.getService();
+            //Debug
+            //System.out.println(mService.toString());
+            // mService = ((MQTTService.java.LocalBinder) service).getService();
+
+            mBound = true;
+            String message = "ON";
+            mService.publishMessageToTopic(message);
+//            mService.stopSelf();
+//            mService.unbindService(mConnection);
+//            unbindService(mConnection);
+
+//            Log_OC.v(TAG, "test reached !!!!!");
+
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            Log_OC.v(TAG, "Service disconnected");
+            mBound = false;
+        }
+    };
+// New class variables end here
 
 
 
@@ -147,6 +190,35 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log_OC.v(TAG, "onCreate() start");
+
+
+//-----------------------------------Modifications start
+        // Segment of modifications
+        Toast.makeText(this,"Owncloud Application has started",Toast.LENGTH_LONG).show();
+
+/* SOS ACTIVITY*/
+
+//        Intent intent = new Intent(this,RemountDiskActivity.class);
+//        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); //prevent blank UI from taking over the screen
+//        startActivity(intent);
+/* SOS ACTIVITY*/
+
+//        final com.imsight.com.imsight.androidmqtt.androidmqtt.MQTTService.java mService;
+//        final mqttservice = new Intent(this, MQTTService.class);
+        mqttService= new Intent(this, MQTTService.class); // "this" was, MainApp.mContext.
+        startService(mqttService);
+/*WATCH OUT! NEXT LINE SHOULD NOT BE COMMENTED!*/
+
+        bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
+
+//below line stops the service.
+//        stopService(mqttService);
+
+
+//-----------------------------------modifications end
+
+
+
 
         super.onCreate(savedInstanceState); // this calls onAccountChanged() when ownCloud Account
         // is valid
@@ -174,7 +246,6 @@ public class FileDisplayActivity extends HookActivity
 
         // Inflate and set the layout view
         setContentView(R.layout.files);
-
         // Navigation Drawer
         initDrawer();
 
@@ -195,6 +266,24 @@ public class FileDisplayActivity extends HookActivity
         // enable ActionBar app icon to behave as action to toggle nav drawer
         //getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
+
+
+        /* MY CODE - PLEASE UNCOMMENT BUTTON CODE AS WELL
+        Button remount_button;
+        remount_button = (Button)findViewById(R.id.remount_button);
+        remount_button.setOnClickListener(new View.OnClickListener() {
+
+			@Override
+			public void onClick(View v) {
+				// TODO Auto-generated method stub
+				Log.d(TAG, "Stop Svc Button Clicked");
+                setContentView(R.layout.hard_disk_reconnect);
+			}
+		});
+
+
+        */
+
 
         Log_OC.v(TAG, "onCreate() end");
     }
@@ -229,7 +318,6 @@ public class FileDisplayActivity extends HookActivity
         if (savedInstanceState == null) {
             createMinFragments();
         }
-
         mProgressBar.setIndeterminate(mSyncInProgress);
         // always AFTER setContentView(...) in onCreate(); to work around bug in its implementation
 
@@ -893,6 +981,19 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onResume() {
         Log_OC.v(TAG, "onResume() start");
+
+        //My code starts here
+
+//        Intent intent = new Intent(this,RemountDiskActivity.class);
+//        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//        startActivity(intent);
+        if (mBound) mService.publishMessageToTopic("ON");                      //turn on the hard disk
+        Log_OC.v(TAG, "HD Activity");
+
+        //setContentView(R.layout.hard_disk_reconnect);
+
+        //My code ends here
+
         super.onResume();
         // refresh Navigation Drawer account list
         mNavigationDrawerAdapter.updateAccountList();
@@ -923,6 +1024,18 @@ public class FileDisplayActivity extends HookActivity
         mDownloadFinishReceiver = new DownloadFinishReceiver();
         registerReceiver(mDownloadFinishReceiver, downloadIntentFilter);
 
+        /*Log_OC.v(TAG,"ANDREAS last code of on resume entered");
+        LinearLayout viewGroup = new LinearLayout(this);
+        LayoutInflater layoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        View layout = layoutInflater.inflate(R.layout.hard_disk_reconnect, viewGroup);
+
+        // Creating the PopupWindow
+        final PopupWindow popup = new PopupWindow(this);
+        popup.setContentView(layout);
+        popup.setFocusable(true);
+        popup.showAtLocation(layout, Gravity.NO_GRAVITY,0,0);
+        SystemClock.sleep(10000);
+        setContentView(R.layout.files); */
         Log_OC.v(TAG, "onResume() end");
 
     }
@@ -937,7 +1050,7 @@ public class FileDisplayActivity extends HookActivity
 //      bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
 
        // bindService(MainApp.mqttService,MainApp.mConnection,Context.BIND_AUTO_CREATE);
-        MainApp.mService.publishMessageToTopic("OFF");                      //turn off the hard disk
+        if (mBound) mService.publishMessageToTopic("OFF");                      //turn off the hard disk
         Log_OC.v(TAG, "Hard disk removed");
 
         //MainApp.mService.unbindService(MainApp.mConnection);
@@ -1859,5 +1972,13 @@ public class FileDisplayActivity extends HookActivity
 
     public void allFilesOption() {
         browseToRoot();
+    }
+
+    public void publishMessage(String message){
+        //if (mBound) for(int i=1;i<10;i++){System.out.println("Supposedly connected");}
+        //while (mService==null){System.out.println("NULL!");}
+        mService.publishMessageToTopic(message);
+        unbindService(mConnection);
+        // stopService(mqttService);
     }
 }
