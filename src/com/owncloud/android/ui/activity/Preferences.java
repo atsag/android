@@ -38,6 +38,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.preference.CheckBoxPreference;
+import android.preference.EditTextPreference;
 import android.preference.Preference;
 import android.preference.Preference.OnPreferenceChangeListener;
 import android.preference.Preference.OnPreferenceClickListener;
@@ -50,6 +51,8 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatDelegate;
 import android.support.v7.widget.Toolbar;
+import android.text.Editable;
+import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.Menu;
@@ -120,6 +123,13 @@ public class Preferences extends PreferenceActivity
     protected FileUploader.FileUploaderBinder mUploaderBinder = null;
     private ServiceConnection mDownloadServiceConnection, mUploadServiceConnection = null;
 
+    //MY CODE
+    private PreferenceCategory mPrefMQTTCategory;
+    private EditTextPreference mPrefBroker;
+    private EditTextPreference mPrefTopic;
+    String mBrokerAddress;
+    String mTopic;
+    //END OF MY CODE
 
     @SuppressWarnings("deprecation")
     @Override
@@ -390,7 +400,44 @@ public class Preferences extends PreferenceActivity
                     }
                 });
         }
-        
+
+        //My code additions
+
+        mPrefMQTTCategory = (PreferenceCategory) findPreference("mqtt_category");
+        mPrefBroker = (EditTextPreference)findPreference("broker");
+        mPrefBroker.setText(mBrokerAddress);
+
+        mPrefBroker.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
+            @Override
+            public boolean onPreferenceChange(Preference preference,Object object) {
+                //mPrefBroker.getSharedPreferences().getString(mBrokerAddress,null);
+                mBrokerAddress = mPrefBroker.getEditText().getText().toString();
+                Log.v(TAG,"Just got a new broker address "+mBrokerAddress);
+                //include logic to update mqtt preferences from here
+                return false;
+            }
+        });
+        /**/
+
+;
+        mPrefTopic = (EditTextPreference) findPreference("topic");
+
+
+        mPrefTopic.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
+            @Override
+            public boolean onPreferenceChange(Preference preference,Object object) {
+                //mPrefBroker.getSharedPreferences().getString(mBrokerAddress,null);
+                mTopic = mPrefTopic.getEditText().getText().toString();
+                Log.v(TAG,"Just got the topic to subscribe to!"+mTopic);
+                //include logic to update mqtt preferences from here
+                return false;
+            }
+        });
+        /**/
+
+        //My code additions end
+
+
         mPrefInstantUploadCategory =
                 (PreferenceCategory) findPreference("instant_uploading_category");
         

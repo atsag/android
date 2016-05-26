@@ -20,8 +20,11 @@ import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.provider.Settings;
 import android.provider.Settings.Secure;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.NotificationCompat;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.Toast;
 //import android.*;
 
@@ -32,13 +35,22 @@ import com.ibm.mqtt.MqttNotConnectedException;
 import com.ibm.mqtt.MqttPersistence;
 import com.ibm.mqtt.MqttPersistenceException;
 import com.ibm.mqtt.MqttSimpleCallback;
+import com.owncloud.android.lib.common.utils.Log_OC;
+import com.owncloud.android.services.DiskUsageService;
+import com.owncloud.android.ui.activity.FileDisplayActivity;
 import com.owncloud.android.ui.activity.RemountDiskActivity;
 
 import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 /*
  * An example of how to implement an MQTT client in Android, able to receive
@@ -118,6 +130,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
     // defaults - this sample uses very basic defaults for it's interactions 
     //   with message brokers
     private int             brokerPortNumber     = 1883;
+    private short           quality_of_service   = 0;
     private MqttPersistence usePersistence       = null;
     private boolean         cleanStart           = false;
     private int[]           qualitiesOfService   = { 0 } ;
@@ -163,6 +176,14 @@ public class MQTTService extends Service implements MqttSimpleCallback
     // receiver that wakes the Service up when it's time to ping the server
     private PingSender pingSender;
 
+    /* MY VARIABLES */
+   //LocalBroadcastManager broadcaster;
+   // long IDLE_SECONDS_LIMIT = 30;
+    BroadcastReceiver receiver;
+    String pending_message = "none";
+    List<Timer> Timers = new ArrayList<>();
+    /* MY VARIABLES END HERE*/
+
     /************************************************************************/
     /*    METHODS - core Service lifecycle methods                          */
     /************************************************************************/
@@ -170,11 +191,94 @@ public class MQTTService extends Service implements MqttSimpleCallback
     // see http://developer.android.com/guide/topics/fundamentals.html#lcycles
 
     /*mycomment*/
+
+
+    private void send_pending_messages(){
+        if (!pending_message.equals("none")) {
+            Log.v(TAG,"Just Sent a pending message, "+pending_message);
+            publishMessageToTopic(pending_message);
+            pending_message="none";
+        }
+    }
+
     @Override
     public void onCreate() 
     {
-        super.onCreate();
 
+// MY CODE
+        //SharedPreferences settings = getSharedPreferences();
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.d(TAG,"Received Alert to subscribe once more");
+                //subscribeToTopic(topicName);
+
+                    Timer timer =new Timer();
+                    //while (true)
+                    timer.schedule(new TimerTask(){
+                        @Override
+                        public void run() {
+                            if (mqttClient==null){
+                                defineConnectionToBroker(brokerHostName);
+                            }
+                            if (connectToBroker()) {
+                                subscribeToTopic(topicName);
+                                Log.v(TAG,"Connected with the help of Timer method");
+//                                unbindService(FileDisplayActivity.mConnection);
+ //                               bindService(FileDisplayActivity.mqttService, FileDisplayActivity.mConnection, Context.BIND_AUTO_CREATE);
+                                send_pending_messages();
+                                Log.v(TAG,"Everything according to plan");
+                                cancel(); //cancels the timer, we have no need for it.
+                            }
+                        }
+                    },10,200);
+                Timers.add(timer);
+            }
+        };
+
+
+
+/*
+        Toast.makeText(this,"MQTTONCREATE",Toast.LENGTH_LONG).show();
+        broadcaster = LocalBroadcastManager.getInstance(this);
+    //repeat the check every minute
+        final SimpleDateFormat format = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+
+        Timer timer =new Timer(); timer.schedule(new TimerTask(){
+        @Override public void run() {
+            Log.v(TAG,"Timer task is Running");
+            long time_idle=0; //measures time between the last activity logged and the current time.
+            try {
+                time_idle =  Calendar.getInstance().getTime().getTime() - format.parse(Log_OC.last_action_timestamp).getTime();
+            }
+            catch (Exception e){
+                Log.e(TAG,"Could not calculate time difference");
+            }
+            long time_idle_in_seconds = TimeUnit.MILLISECONDS.toSeconds(time_idle);
+            if (time_idle_in_seconds>IDLE_SECONDS_LIMIT){
+                signalDisk();
+            }
+        }
+    },60*1000);
+
+
+    // Recurring task
+        Timer timer =new Timer(); timer.scheduleAtFixedRate(new TimerTask(){
+        @Override public void run() {
+            Log.v(TAG,"SignalDisk is Running");
+            signalDisk();
+        }
+    }, 1000, 1000);
+
+
+        // Intent intent = new Intent(this, RemountDiskActivity.class);
+       // intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+       // startActivity(intent);
+
+        Log.d(TAG,"Remount Activity should have started");
+    */
+    /*MY CODE END  */
+        super.onCreate();
 
         // reset status variable to initial state
         connectionStatus = MQTTConnectionStatus.INITIAL;
@@ -222,6 +326,8 @@ public class MQTTService extends Service implements MqttSimpleCallback
     @Override
     public int onStartCommand(final Intent intent, int flags, final int startId) 
     {
+        LocalBroadcastManager.getInstance(this).registerReceiver((receiver),
+                new IntentFilter("com.mqttservice.restart"));
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -237,7 +343,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
     synchronized void handleStart(Intent intent, int startId)
     {
         // before we start - check for a couple of reasons why we should stop
-        
+
         if (mqttClient == null) 
         {
             // we were unable to define the MQTT client connection, so we stop 
@@ -355,6 +461,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
     public void onDestroy() 
     {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
         super.onDestroy();
 
         // disconnect immediately
@@ -791,6 +898,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
     	Boolean retained = false;
     	if (isAlreadyConnected() == false)
     	{
+            pending_message = message;
     		Log.d(TAG, "mqtt, Unable to publish as we are not connected");
     	}
     	else
@@ -807,7 +915,8 @@ public class MQTTService extends Service implements MqttSimpleCallback
     			
     			
     			// mqttClient.publish(RESP_TOPIC, msg, 0, false);
-    			mqttClient.publish(topicName, msg, 0, false);
+
+    			mqttClient.publish(topicName, msg, quality_of_service, false);
     			//subscribed = true;
     			
     		}
@@ -1111,8 +1220,6 @@ public class MQTTService extends Service implements MqttSimpleCallback
             scheduleNextPing();
         }
     }
-
-
 
     /************************************************************************/
     /*   APP SPECIFIC - stuff that would vary for different uses of MQTT    */

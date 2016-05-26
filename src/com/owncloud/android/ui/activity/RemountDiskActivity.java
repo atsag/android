@@ -13,11 +13,11 @@ import com.owncloud.android.R;
  * Created by andreas on 5/6/16.
  */
 public class RemountDiskActivity extends FragmentActivity {
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate() {
         //Toast.makeText(this, "Remount Activity started", Toast.LENGTH_SHORT).show();
-        //setContentView(R.layout.hard_disk_reconnect);
-        //Log.d("Layout","Layout Change!");
-        super.onCreate(savedInstanceState);
+        super.setContentView(R.layout.hard_disk_reconnect);
+        Log.d("Layout","Layout Change!");
+        //super.onCreate(savedInstanceState);
     }
     protected void onPause() {
         //Toast.makeText(this, "Remount Activity paused", Toast.LENGTH_LONG).show();

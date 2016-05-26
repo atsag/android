@@ -49,6 +49,7 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.GravityCompat;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
@@ -85,6 +86,7 @@ import com.owncloud.android.operations.RemoveFileOperation;
 import com.owncloud.android.operations.RenameFileOperation;
 import com.owncloud.android.operations.SynchronizeFileOperation;
 import com.owncloud.android.operations.UploadFileOperation;
+import com.owncloud.android.services.DiskUsageService;
 import com.owncloud.android.services.observer.FileObserverService;
 import com.owncloud.android.syncadapter.FileSyncAdapter;
 import com.owncloud.android.ui.fragment.FileDetailFragment;
@@ -102,6 +104,8 @@ import com.owncloud.android.utils.PermissionUtil;
 import com.owncloud.android.utils.UriUtils;
 
 import java.io.File;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import com.owncloud.android.MainApp.*;
 /**
@@ -145,9 +149,10 @@ public class FileDisplayActivity extends HookActivity
     private OCFile mWaitingToSend;
 
     /*My class variables start here*/
-
-    // New (my) class variables start here
+    BroadcastReceiver receiver;
+    LocalBroadcastManager broadcaster;
     public static Intent mqttService;
+    public static Intent diskusageService;
     public static MQTTService mService;
     private static boolean mBound;
     public static ServiceConnection mConnection = new ServiceConnection() {
@@ -167,7 +172,8 @@ public class FileDisplayActivity extends HookActivity
 
             mBound = true;
             String message = "ON";
-            mService.publishMessageToTopic(message);
+            publishMessage(message);
+
 //            mService.stopSelf();
 //            mService.unbindService(mConnection);
 //            unbindService(mConnection);
@@ -178,7 +184,7 @@ public class FileDisplayActivity extends HookActivity
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
-            Log_OC.v(TAG, "Service disconnected");
+            Log_OC.v(TAG, "MQTT Service disconnected");
             mBound = false;
         }
     };
@@ -188,30 +194,58 @@ public class FileDisplayActivity extends HookActivity
 
     /*My class variables end here*/
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(final Bundle savedInstanceState) {
         Log_OC.v(TAG, "onCreate() start");
 
 
 //-----------------------------------Modifications start
         // Segment of modifications
-        Toast.makeText(this,"Owncloud Application has started",Toast.LENGTH_LONG).show();
+        broadcaster = LocalBroadcastManager.getInstance(this);
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                publishMessage("OFF");
+                setContentView(R.layout.hard_disk_reconnect);
+                Log.d(TAG,"message from notifyDiskDisconnected received - disk unmounted");
+                final Intent reply_intent = new Intent(FileDisplayActivity.this,DiskUsageService.class);
+                reply_intent.setAction("com.filedisplayactivity.broadcast_received");
+                broadcaster.sendBroadcast(reply_intent);
+                Button RemountButton = (Button)findViewById(R.id.remount_disk);
+                RemountButton.setOnClickListener(new View.OnClickListener() {
 
-/* SOS ACTIVITY*/
+                    @Override
+                    public void onClick(View v) {
+                        // TODO Auto-generated method stub
+                        Log.d(TAG, "Remount Button Clicked");
+                        stopService(diskusageService);
+                        stopService(mqttService);
+                        unbindService(mConnection);
+                        //DiskUsageService.USER_NOTIFIED=false; // restore alerts
+                        reply_intent.setAction("com.filedisplayactivity.user_notified_reset"); //MUST BE THE SAME WITH RELEVANT ACTION IN FILEDISPLAYACTIVITY RECEIVER
+                        broadcaster.sendBroadcast(reply_intent);
+                        FileDisplayActivity.this.recreate(); // this also takes care of the OFF state of the hard disk.
+                    }
+                });
+            }
+        };
 
-//        Intent intent = new Intent(this,RemountDiskActivity.class);
-//        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); //prevent blank UI from taking over the screen
-//        startActivity(intent);
-/* SOS ACTIVITY*/
+
 
 //        final com.imsight.com.imsight.androidmqtt.androidmqtt.MQTTService.java mService;
 //        final mqttservice = new Intent(this, MQTTService.class);
+
         mqttService= new Intent(this, MQTTService.class); // "this" was, MainApp.mContext.
         startService(mqttService);
-/*WATCH OUT! NEXT LINE SHOULD NOT BE COMMENTED!*/
-
         bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
 
-//below line stops the service.
+        Log.v(TAG,"Disk Service Starting");
+
+        diskusageService = new Intent(this, DiskUsageService.class);
+        startService(diskusageService);
+
+        Log.v(TAG,"Disk Service Started");
+
+//below line stops the mqttservice.
 //        stopService(mqttService);
 
 
@@ -346,6 +380,8 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onStart() {
         Log_OC.v(TAG, "onStart() start");
+        LocalBroadcastManager.getInstance(this).registerReceiver((receiver),
+                new IntentFilter("com.diskusageservice.remountaction"));
         super.onStart();
         Log_OC.v(TAG, "onStart() end");
     }
@@ -353,6 +389,7 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onStop() {
         Log_OC.v(TAG, "onStop() start");
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
         super.onStop();
         Log_OC.v(TAG, "onStop() end");
     }
@@ -987,7 +1024,7 @@ public class FileDisplayActivity extends HookActivity
 //        Intent intent = new Intent(this,RemountDiskActivity.class);
 //        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 //        startActivity(intent);
-        if (mBound) mService.publishMessageToTopic("ON");                      //turn on the hard disk
+        publishMessage("ON"); //turn on the hard disk
         Log_OC.v(TAG, "HD Activity");
 
         //setContentView(R.layout.hard_disk_reconnect);
@@ -1050,7 +1087,7 @@ public class FileDisplayActivity extends HookActivity
 //      bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
 
        // bindService(MainApp.mqttService,MainApp.mConnection,Context.BIND_AUTO_CREATE);
-        if (mBound) mService.publishMessageToTopic("OFF");                      //turn off the hard disk
+        publishMessage("OFF");                      //turn off the hard disk
         Log_OC.v(TAG, "Hard disk removed");
 
         //MainApp.mService.unbindService(MainApp.mConnection);
@@ -1974,11 +2011,7 @@ public class FileDisplayActivity extends HookActivity
         browseToRoot();
     }
 
-    public void publishMessage(String message){
-        //if (mBound) for(int i=1;i<10;i++){System.out.println("Supposedly connected");}
-        //while (mService==null){System.out.println("NULL!");}
-        mService.publishMessageToTopic(message);
-        unbindService(mConnection);
-        // stopService(mqttService);
+    public static void publishMessage(String message){
+        if (mBound) mService.publishMessageToTopic(message); //if mBound is true, then mService will have started
     }
 }

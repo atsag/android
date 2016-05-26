@@ -29,10 +29,17 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 
+import com.owncloud.android.MQTTService;
+import com.owncloud.android.MainApp;
 import com.owncloud.android.db.PreferenceManager;
 import com.owncloud.android.db.UploadResult;
 import com.owncloud.android.lib.common.utils.Log_OC;
+import com.owncloud.android.ui.activity.FileDisplayActivity;
+
+import java.io.File;
 
 /**
  * Receives all connectivity action from Android OS at all times and performs
@@ -54,7 +61,8 @@ public class ConnectivityActionReceiver extends BroadcastReceiver {
      * {@See http://developer.android.com/intl/es/reference/android/net/wifi/WifiInfo.html#getSSID()}
      */
     private static final String UNKNOWN_SSID = "<unknown ssid>";
-
+    LocalBroadcastManager broadcaster;
+    Intent mqttservice;
 
     @Override
     public void onReceive(final Context context, Intent intent) {
@@ -100,7 +108,6 @@ public class ConnectivityActionReceiver extends BroadcastReceiver {
                 bssid != null
                     ) {
                 Log_OC.d(TAG, "WiFi connected");
-
                 wifiConnected(context);
             } else {
                 // TODO tons of things to check to conclude disconnection;
@@ -153,6 +160,14 @@ public class ConnectivityActionReceiver extends BroadcastReceiver {
     }
 
     private void wifiConnected(Context context) {
+        //MY CODE
+        Log.v(TAG,"wifi connected, so mqtt is restarted");
+        mqttservice = new Intent(context.getApplicationContext(),MQTTService.class);
+        mqttservice.setAction("com.mqttservice.restart"); //MUST BE THE SAME WITH RELEVANT ACTION IN MQTTSERVICE RECEIVER
+        broadcaster = LocalBroadcastManager.getInstance(context);
+        broadcaster.sendBroadcast(mqttservice);
+        //MY CODE END
+
         // for the moment, only recovery of instant uploads, similar to behaviour in release 1.9.1
         if (
                 (PreferenceManager.instantPictureUploadEnabled(context) &&

@@ -22,29 +22,16 @@ package com.owncloud.android;
 
 import android.app.Activity;
 import android.app.Application;
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.IBinder;
-import android.util.Log;
-import android.widget.Toast;
-
 import com.owncloud.android.authentication.PassCodeManager;
 import com.owncloud.android.datamodel.ThumbnailsCacheManager;
 import com.owncloud.android.lib.common.OwnCloudClientManagerFactory;
 import com.owncloud.android.lib.common.OwnCloudClientManagerFactory.Policy;
 import com.owncloud.android.lib.common.utils.Log_OC;
-
-import java.lang.ref.WeakReference;
-
-//My_imports
-import com.owncloud.android.MQTTService.LocalBinder;
-//my_imports end
 
 /**
  * Main Application of the project
