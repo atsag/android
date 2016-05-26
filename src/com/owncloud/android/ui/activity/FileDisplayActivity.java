@@ -37,16 +37,18 @@ import android.content.SharedPreferences;
 import android.content.SyncRequest;
 import android.content.pm.PackageManager;
 import android.content.res.Resources.NotFoundException;
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+//<<<<<<< HEAD
 import android.os.SystemClock;
+//=======
+import android.os.Parcelable;
+//>>>>>>> 6fdbb65d2344bd9276529b153e9a6f5a3774fc3d
 import android.preference.PreferenceManager;
-import android.provider.OpenableColumns;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
@@ -92,6 +94,8 @@ import com.owncloud.android.syncadapter.FileSyncAdapter;
 import com.owncloud.android.ui.fragment.FileDetailFragment;
 import com.owncloud.android.ui.fragment.FileFragment;
 import com.owncloud.android.ui.fragment.OCFileListFragment;
+import com.owncloud.android.ui.fragment.TaskRetainerFragment;
+import com.owncloud.android.ui.helpers.UriUploader;
 import com.owncloud.android.ui.preview.PreviewImageActivity;
 import com.owncloud.android.ui.preview.PreviewImageFragment;
 import com.owncloud.android.ui.preview.PreviewMediaFragment;
@@ -101,11 +105,14 @@ import com.owncloud.android.utils.DisplayUtils;
 import com.owncloud.android.utils.ErrorMessageAdapter;
 import com.owncloud.android.utils.FileStorageUtils;
 import com.owncloud.android.utils.PermissionUtil;
-import com.owncloud.android.utils.UriUtils;
 
 import java.io.File;
+//<<<<<<< HEAD
 import java.util.Timer;
 import java.util.TimerTask;
+//=======
+import java.util.ArrayList;
+//>>>>>>> 6fdbb65d2344bd9276529b153e9a6f5a3774fc3d
 
 import com.owncloud.android.MainApp.*;
 /**
@@ -133,7 +140,7 @@ public class FileDisplayActivity extends HookActivity
     public static final String ACTION_DETAILS = "com.owncloud.android.ui.activity.action.DETAILS";
 
     public static final int REQUEST_CODE__SELECT_CONTENT_FROM_APPS = REQUEST_CODE__LAST_SHARED + 1;
-    public static final int REQUEST_CODE__SELECT_MULTIPLE_FILES = REQUEST_CODE__LAST_SHARED + 2;
+    public static final int REQUEST_CODE__SELECT_FILES_FROM_FILE_SYSTEM = REQUEST_CODE__LAST_SHARED + 2;
     public static final int REQUEST_CODE__MOVE_FILES = REQUEST_CODE__LAST_SHARED + 3;
     public static final int REQUEST_CODE__COPY_FILES = REQUEST_CODE__LAST_SHARED + 4;
 
@@ -301,6 +308,7 @@ public class FileDisplayActivity extends HookActivity
         //getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
 
+//<<<<<<< HEAD
 
         /* MY CODE - PLEASE UNCOMMENT BUTTON CODE AS WELL
         Button remount_button;
@@ -318,6 +326,17 @@ public class FileDisplayActivity extends HookActivity
 
         */
 
+//=======
+        // Init Fragment without UI to retain AsyncTask across configuration changes
+        FragmentManager fm = getSupportFragmentManager();
+        TaskRetainerFragment taskRetainerFragment =
+                (TaskRetainerFragment) fm.findFragmentByTag(TaskRetainerFragment.FTAG_TASK_RETAINER_FRAGMENT);
+        if (taskRetainerFragment == null) {
+            taskRetainerFragment = new TaskRetainerFragment();
+            fm.beginTransaction()
+                    .add(taskRetainerFragment, TaskRetainerFragment.FTAG_TASK_RETAINER_FRAGMENT).commit();
+        }   // else, Fragment already created and retained across configuration change
+//>>>>>>> 6fdbb65d2344bd9276529b153e9a6f5a3774fc3d
 
         Log_OC.v(TAG, "onCreate() end");
     }
@@ -772,26 +791,15 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 
-        if (requestCode == REQUEST_CODE__SELECT_CONTENT_FROM_APPS && (resultCode == RESULT_OK ||
-                resultCode == UploadFilesActivity.RESULT_OK_AND_MOVE)) {
+        if (requestCode == REQUEST_CODE__SELECT_CONTENT_FROM_APPS &&
+            (resultCode == RESULT_OK || resultCode == UploadFilesActivity.RESULT_OK_AND_MOVE)) {
 
-            //getClipData is only supported on api level 16+, Jelly Bean
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN &&
-                    data.getClipData() != null &&
-                    data.getClipData().getItemCount() > 0) {
+            requestUploadOfContentFromApps(data, resultCode);
 
-                for (int i = 0; i < data.getClipData().getItemCount(); i++) {
-                    Intent intent = new Intent();
-                    intent.setData(data.getClipData().getItemAt(i).getUri());
-                    requestSimpleUpload(intent, resultCode);
-                }
+        } else if (requestCode == REQUEST_CODE__SELECT_FILES_FROM_FILE_SYSTEM &&
+            (resultCode == RESULT_OK || resultCode == UploadFilesActivity.RESULT_OK_AND_MOVE)) {
 
-            } else {
-                requestSimpleUpload(data, resultCode);
-            }
-        } else if (requestCode == REQUEST_CODE__SELECT_MULTIPLE_FILES && (resultCode == RESULT_OK ||
-                resultCode == UploadFilesActivity.RESULT_OK_AND_MOVE)) {
-            requestMultipleUpload(data, resultCode);
+            requestUploadOfFilesFromFileSystem(data, resultCode);
 
         } else if (requestCode == REQUEST_CODE__MOVE_FILES && resultCode == RESULT_OK) {
             final Intent fData = data;
@@ -826,7 +834,7 @@ public class FileDisplayActivity extends HookActivity
 
     }
 
-    private void requestMultipleUpload(Intent data, int resultCode) {
+    private void requestUploadOfFilesFromFileSystem(Intent data, int resultCode) {
         String[] filePaths = data.getStringArrayExtra(UploadFilesActivity.EXTRA_CHOSEN_FILES);
         if (filePaths != null) {
             String[] remotePaths = new String[filePaths.length];
@@ -859,80 +867,40 @@ public class FileDisplayActivity extends HookActivity
     }
 
 
-    private void requestSimpleUpload(Intent data, int resultCode) {
-        String filePath = null;
-        String mimeType = null;
+    private void requestUploadOfContentFromApps(Intent contentIntent, int resultCode) {
 
-        Uri selectedImageUri = data.getData();
+        ArrayList<Parcelable> streamsToUpload = new ArrayList<>();
 
-        try {
-            mimeType = getContentResolver().getType(selectedImageUri);
+        //getClipData is only supported on api level 16+, Jelly Bean
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN &&
+            contentIntent.getClipData() != null &&
+            contentIntent.getClipData().getItemCount() > 0) {
 
-            String fileManagerString = selectedImageUri.getPath();
-            String selectedImagePath = UriUtils.getLocalPath(selectedImageUri, this);
-
-            if (selectedImagePath != null)
-                filePath = selectedImagePath;
-            else
-                filePath = fileManagerString;
-
-        } catch (Exception e) {
-            Log_OC.e(TAG, "Unexpected exception when trying to read the result of " +
-                    "Intent.ACTION_GET_CONTENT", e);
-
-        } finally {
-            if (filePath == null) {
-                Log_OC.e(TAG, "Couldn't resolve path to file");
-                Toast t = Toast.makeText(
-                        this, getString(R.string.filedisplay_unexpected_bad_get_content),
-                        Toast.LENGTH_LONG
-                );
-                t.show();
-                return;
-            }
-        }
-
-        Intent i = new Intent(this, FileUploader.class);
-        i.putExtra(FileUploader.KEY_ACCOUNT,
-                getAccount());
-        OCFile currentDir = getCurrentDir();
-        String remotePath = (currentDir != null) ? currentDir.getRemotePath() : OCFile.ROOT_PATH;
-
-        if (filePath.startsWith(UriUtils.URI_CONTENT_SCHEME)) {
-            Cursor cursor = getContentResolver().query(Uri.parse(filePath), null, null, null, null);
-            try {
-                if (cursor != null && cursor.moveToFirst()) {
-                    String displayName = cursor.getString(cursor.getColumnIndex(
-                            OpenableColumns.DISPLAY_NAME));
-                    Log_OC.v(TAG, "Display Name: " + displayName);
-
-                    displayName.replace(File.separatorChar, '_');
-                    displayName.replace(File.pathSeparatorChar, '_');
-                    remotePath += displayName + DisplayUtils.getComposedFileExtension(filePath);
-
-                }
-                // and what happens in case of error?; wrong target name for the upload
-            } finally {
-                cursor.close();
+            for (int i = 0; i < contentIntent.getClipData().getItemCount(); i++) {
+                streamsToUpload.add(contentIntent.getClipData().getItemAt(i).getUri());
             }
 
         } else {
-            remotePath += new File(filePath).getName();
+            streamsToUpload.add(contentIntent.getData());
         }
 
         int behaviour = (resultCode == UploadFilesActivity.RESULT_OK_AND_MOVE) ? FileUploader.LOCAL_BEHAVIOUR_MOVE :
                 FileUploader.LOCAL_BEHAVIOUR_COPY;
-        FileUploader.UploadRequester requester = new FileUploader.UploadRequester();
-        requester.uploadNewFile(
+
+        OCFile currentDir = getCurrentDir();
+        String remotePath = (currentDir != null) ? currentDir.getRemotePath() : OCFile.ROOT_PATH;
+
+        UriUploader uploader = new UriUploader(
                 this,
-                getAccount(),
-                filePath,
+                streamsToUpload,
                 remotePath,
+                getAccount(),
                 behaviour,
-                mimeType,
-                false,          // do not create parent folder if not existent
-                UploadFileOperation.CREATED_BY_USER
+                false, // Not show waiting dialog while file is being copied from private storage
+                null  // Not needed copy temp task listener
         );
+
+        uploader.uploadUris();
 
     }
 
