@@ -1,5 +1,6 @@
 package com.owncloud.android;
 
+import android.accounts.Account;
 import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -13,6 +14,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Parcel;
@@ -35,11 +37,15 @@ import com.ibm.mqtt.MqttNotConnectedException;
 import com.ibm.mqtt.MqttPersistence;
 import com.ibm.mqtt.MqttPersistenceException;
 import com.ibm.mqtt.MqttSimpleCallback;
+import com.owncloud.android.authentication.AccountUtils;
 import com.owncloud.android.lib.common.utils.Log_OC;
 import com.owncloud.android.services.DiskUsageService;
 import com.owncloud.android.ui.activity.FileDisplayActivity;
+import com.owncloud.android.ui.activity.Preferences;
 import com.owncloud.android.ui.activity.RemountDiskActivity;
+import android.preference.PreferenceManager;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -70,7 +76,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
 	
     // something unique to identify your app - used for stuff like accessing
     //   application preferences
-    public static final String APP_ID = "com.imsight.androidmqtt";
+    public static final String APP_ID = "com.owncloud.android";
     
     // constants used to notify the Activity UI of received messages    
     public static final String MQTT_MSG_RECEIVED_INTENT = "com.imsight.androidmqtt.MSGRECVD";
@@ -120,11 +126,11 @@ public class MQTTService extends Service implements MqttSimpleCallback
     
     // taken from preferences
     //    host name of the server we're receiving push notifications from
-    private String          brokerHostName       = "192.168.1.6";
+    private String          brokerHostName       = "test";//"192.168.1.6";
     // taken from preferences
     //    topic we want to receive messages about
     //    can include wildcards - e.g.  '#' matches anything
-    private String          topicName            = "$SYS/disk";
+    private String          topicName            = "test";//"$SYS/disk";
 
     
     // defaults - this sample uses very basic defaults for it's interactions 
@@ -177,11 +183,16 @@ public class MQTTService extends Service implements MqttSimpleCallback
     private PingSender pingSender;
 
     /* MY VARIABLES */
-   //LocalBroadcastManager broadcaster;
+
+   // /LocalBroadcastManager broadcaster;
    // long IDLE_SECONDS_LIMIT = 30;
-    BroadcastReceiver receiver;
-    String pending_message = "none";
-    List<Timer> Timers = new ArrayList<>();
+
+    Handler handler = new Handler();
+    BroadcastReceiver wifi_reconnection_receiver,mqtt_preferences_receiver;
+    private String pending_message = "none";
+    private Boolean RESTART = false;
+    private Boolean COMPLEX_NOTIFICATIONS = false;
+    private Boolean SIMPLE_NOTIFICATIONS = true;
     /* MY VARIABLES END HERE*/
 
     /************************************************************************/
@@ -204,35 +215,73 @@ public class MQTTService extends Service implements MqttSimpleCallback
     @Override
     public void onCreate() 
     {
+        Account currentAccount = AccountUtils.getCurrentOwnCloudAccount(getApplicationContext());
+        if (currentAccount==null){
+            Log.v(TAG,"Current Account is null");
+            return;
+        }
+        else {
+            Log.v(TAG,"Current Account is "+currentAccount.name);
+        }
 
 // MY CODE
-        //SharedPreferences settings = getSharedPreferences();
-        receiver = new BroadcastReceiver() {
+        Log.v(TAG, "Current broker address is: " + brokerHostName);
+        Log.v(TAG, "Current Mqtt topic is: " + topicName);
+        PreferenceManager preferenceManager ;
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+
+        brokerHostName=prefs.getString("brokerHostName",null);
+        topicName = prefs.getString("topicName",null);
+
+        Log.v(TAG, "Updated broker address is: " + brokerHostName);
+        Log.v(TAG, "Updated Mqtt topic is: " + topicName);
+
+        mqtt_preferences_receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                //SharedPreferences settings = getSharedPreferences("com.owncloud.android.ui.Preferences",MODE_PRIVATE);
+                //String test = new Preferences().getSharedPreferences("",0).getString("brokerHostName",null);
+                brokerHostName = intent.getStringExtra("brokerHostName");
+                topicName = intent.getStringExtra("topicName");
+
+                Log.v(TAG, "New broker address is: " + brokerHostName);
+                Log.v(TAG, "New Mqtt topic is: " + topicName);
+                if (brokerHostName != null && topicName != null){
+                    RESTART = true;
+                    stopSelf();
+                }
+
+                //Log.v(TAG,"test is "+test);
+            }
+        };
+
+
+        wifi_reconnection_receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 Log.d(TAG,"Received Alert to subscribe once more");
                 //subscribeToTopic(topicName);
+                Log.v(TAG,"these are the current values for broker: "+brokerHostName+" and topic: "+topicName);
 
                     Timer timer =new Timer();
                     //while (true)
                     timer.schedule(new TimerTask(){
                         @Override
                         public void run() {
+                            Log.v(TAG,"Trying to connect with the help of Timer to topic "+topicName+" and broker "+brokerHostName);
                             if (mqttClient==null){
                                 defineConnectionToBroker(brokerHostName);
                             }
                             if (connectToBroker()) {
                                 subscribeToTopic(topicName);
-                                Log.v(TAG,"Connected with the help of Timer method");
 //                                unbindService(FileDisplayActivity.mConnection);
  //                               bindService(FileDisplayActivity.mqttService, FileDisplayActivity.mConnection, Context.BIND_AUTO_CREATE);
                                 send_pending_messages();
-                                Log.v(TAG,"Everything according to plan");
+                                Log.v(TAG,"Connected with the help of Timer method and sent pending messages");
                                 cancel(); //cancels the timer, we have no need for it.
                             }
                         }
                     },10,200);
-                Timers.add(timer);
             }
         };
 
@@ -290,9 +339,11 @@ public class MQTTService extends Service implements MqttSimpleCallback
         // get the broker settings out of app preferences
         //   this is not the only way to do this - for example, you could use 
         //   the Intent that starts the Service to pass on configuration values
-        SharedPreferences settings = getSharedPreferences(APP_ID, MODE_PRIVATE);
+
 
         //MYCOMMENTS
+        //SharedPreferences settings = getSharedPreferences(APP_ID, MODE_PRIVATE);
+
         //brokerHostName = settings.getString("broker", "");
         //topicName      = settings.getString("topic",  "");
         
@@ -326,8 +377,10 @@ public class MQTTService extends Service implements MqttSimpleCallback
     @Override
     public int onStartCommand(final Intent intent, int flags, final int startId) 
     {
-        LocalBroadcastManager.getInstance(this).registerReceiver((receiver),
+        LocalBroadcastManager.getInstance(this).registerReceiver((wifi_reconnection_receiver),
                 new IntentFilter("com.mqttservice.restart"));
+        LocalBroadcastManager.getInstance(this).registerReceiver((mqtt_preferences_receiver),
+                new IntentFilter("com.owncloud.preferences.update_mqtt"));
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -409,6 +462,11 @@ public class MQTTService extends Service implements MqttSimpleCallback
             {
                 // we think we have an Internet connection, so try to connect
                 //  to the message broker
+                //MY CODE
+                if (mqttClient==null){
+                    defineConnectionToBroker(brokerHostName);
+                }
+                //MY CODE END
                 if (connectToBroker()) 
                 {
                     // we subscribe to a topic - registering to receive push
@@ -461,7 +519,10 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
     public void onDestroy() 
     {
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(wifi_reconnection_receiver);
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mqtt_preferences_receiver);
+        Log.v(TAG,"Mqtt service terminating");
+
         super.onDestroy();
 
         // disconnect immediately
@@ -481,6 +542,11 @@ public class MQTTService extends Service implements MqttSimpleCallback
             mBinder.close();
             mBinder = null;
         }
+        if(RESTART){
+            startService(new Intent(this,MQTTService.class));
+            Log.v(TAG,"Mqtt service should restart");
+        }
+
     }
         /*mycomment ends*/
 
@@ -524,6 +590,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
     private void notifyUser(String alert, String title, String body)
     {
+        if (COMPLEX_NOTIFICATIONS){
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
         Intent notificationIntent = new Intent(this, MQTTActivity.class);
@@ -548,7 +615,18 @@ public class MQTTService extends Service implements MqttSimpleCallback
         notification.ledARGB = Color.MAGENTA;
 
 
-        nm.notify(MQTT_NOTIFICATION_UPDATE, notification);        
+        nm.notify(MQTT_NOTIFICATION_UPDATE, notification);
+        }
+        else if (SIMPLE_NOTIFICATIONS) {
+            if (body.equals("ON")) body = "Hard disk has been mounted";
+            else if (body.equals("OFF")) body = "Hard disk has been unmounted";
+            final String parent_alert = body;
+            handler.post(new Runnable() {
+                    public void run() {
+                        Toast.makeText(getApplicationContext(),parent_alert,Toast.LENGTH_SHORT).show();
+                    }
+            });
+        }
     }
 
 
@@ -870,7 +948,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
             //   that we failed to connect
 
 
-           notifyUser("Unable to connect", "MQTT", "Unable to connect - will retry later");
+           notifyUser("Unable to connect", "MQTT", "Unable to connect - will retry later. Please ensure that you have inserted a valid MQTT broker IP address and a topic");
 
 
 
@@ -1115,7 +1193,12 @@ public class MQTTService extends Service implements MqttSimpleCallback
             if (isOnline())
             {
                 // we have an internet connection - have another try at connecting
-                if (connectToBroker()) 
+                //MY CODE
+                if (mqttClient==null){
+                    defineConnectionToBroker(brokerHostName);
+                }
+                //MY CODE END
+                if (connectToBroker())
                 {
                     // we subscribe to a topic - registering to receive push
                     //  notifications with a particular key

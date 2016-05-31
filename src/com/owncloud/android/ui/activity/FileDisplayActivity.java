@@ -40,11 +40,8 @@ import android.content.res.Resources.NotFoundException;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-//<<<<<<< HEAD
 import android.os.SystemClock;
-//=======
 import android.os.Parcelable;
-//>>>>>>> 6fdbb65d2344bd9276529b153e9a6f5a3774fc3d
 import android.preference.PreferenceManager;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
@@ -70,12 +67,16 @@ import android.widget.PopupWindow;
 import com.owncloud.android.MQTTService;
 import com.owncloud.android.MainApp;
 import com.owncloud.android.R;
+import com.owncloud.android.authentication.AccountUtils;
 import com.owncloud.android.datamodel.FileDataStorageManager;
 import com.owncloud.android.datamodel.OCFile;
 import com.owncloud.android.files.services.FileDownloader;
 import com.owncloud.android.files.services.FileDownloader.FileDownloaderBinder;
 import com.owncloud.android.files.services.FileUploader;
 import com.owncloud.android.files.services.FileUploader.FileUploaderBinder;
+import com.owncloud.android.lib.common.OwnCloudClient;
+import com.owncloud.android.lib.common.SimpleFactoryManager;
+import com.owncloud.android.lib.common.accounts.AccountTypeUtils;
 import com.owncloud.android.lib.common.operations.RemoteOperation;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult.ResultCode;
@@ -107,12 +108,11 @@ import com.owncloud.android.utils.FileStorageUtils;
 import com.owncloud.android.utils.PermissionUtil;
 
 import java.io.File;
-//<<<<<<< HEAD
+
 import java.util.Timer;
 import java.util.TimerTask;
-//=======
+
 import java.util.ArrayList;
-//>>>>>>> 6fdbb65d2344bd9276529b153e9a6f5a3774fc3d
 
 import com.owncloud.android.MainApp.*;
 /**
@@ -156,6 +156,7 @@ public class FileDisplayActivity extends HookActivity
     private OCFile mWaitingToSend;
 
     /*My class variables start here*/
+    public static Boolean CONTENT_RELOADED = false;
     BroadcastReceiver receiver;
     LocalBroadcastManager broadcaster;
     public static Intent mqttService;
@@ -225,8 +226,10 @@ public class FileDisplayActivity extends HookActivity
                         // TODO Auto-generated method stub
                         Log.d(TAG, "Remount Button Clicked");
                         stopService(diskusageService);
+                        //rcode
                         stopService(mqttService);
                         unbindService(mConnection);
+                        mBound = false; //cannot rely on onServiceDisconnected to update the value of mBound.
                         //DiskUsageService.USER_NOTIFIED=false; // restore alerts
                         reply_intent.setAction("com.filedisplayactivity.user_notified_reset"); //MUST BE THE SAME WITH RELEVANT ACTION IN FILEDISPLAYACTIVITY RECEIVER
                         broadcaster.sendBroadcast(reply_intent);
@@ -236,14 +239,23 @@ public class FileDisplayActivity extends HookActivity
             }
         };
 
-
-
 //        final com.imsight.com.imsight.androidmqtt.androidmqtt.MQTTService.java mService;
 //        final mqttservice = new Intent(this, MQTTService.class);
 
+
+
+//SOS ON ERROR UNCOMMENT THE FOLLOWING TWO LINES!!!!
+
+
         mqttService= new Intent(this, MQTTService.class); // "this" was, MainApp.mContext.
         startService(mqttService);
-        bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
+
+
+//SOS ON ERROR UNCOMMENT THE PREVIOUS TWO LINES!!!!
+
+
+        //bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
+        //publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
 
         Log.v(TAG,"Disk Service Starting");
 
@@ -308,8 +320,6 @@ public class FileDisplayActivity extends HookActivity
         //getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
 
-//<<<<<<< HEAD
-
         /* MY CODE - PLEASE UNCOMMENT BUTTON CODE AS WELL
         Button remount_button;
         remount_button = (Button)findViewById(R.id.remount_button);
@@ -326,7 +336,6 @@ public class FileDisplayActivity extends HookActivity
 
         */
 
-//=======
         // Init Fragment without UI to retain AsyncTask across configuration changes
         FragmentManager fm = getSupportFragmentManager();
         TaskRetainerFragment taskRetainerFragment =
@@ -336,7 +345,6 @@ public class FileDisplayActivity extends HookActivity
             fm.beginTransaction()
                     .add(taskRetainerFragment, TaskRetainerFragment.FTAG_TASK_RETAINER_FRAGMENT).commit();
         }   // else, Fragment already created and retained across configuration change
-//>>>>>>> 6fdbb65d2344bd9276529b153e9a6f5a3774fc3d
 
         Log_OC.v(TAG, "onCreate() end");
     }
@@ -985,15 +993,21 @@ public class FileDisplayActivity extends HookActivity
 
     @Override
     protected void onResume() {
+
+
         Log_OC.v(TAG, "onResume() start");
 
         //My code starts here
+        if (!mBound) {
+            bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
+        }
+        publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
+        Log_OC.v(TAG, "OnResume published ON message, but did it arrive?");
 
 //        Intent intent = new Intent(this,RemountDiskActivity.class);
 //        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 //        startActivity(intent);
-        publishMessage("ON"); //turn on the hard disk
-        Log_OC.v(TAG, "HD Activity");
+
 
         //setContentView(R.layout.hard_disk_reconnect);
 
@@ -1051,12 +1065,13 @@ public class FileDisplayActivity extends HookActivity
         Log_OC.v(TAG, "onPause() start");
 
         //My code begins here
-//      startService(mqttService);
-//      bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
 
-       // bindService(MainApp.mqttService,MainApp.mConnection,Context.BIND_AUTO_CREATE);
         publishMessage("OFF");                      //turn off the hard disk
-        Log_OC.v(TAG, "Hard disk removed");
+        if (mBound) {
+            unbindService(mConnection);
+            mBound = false; //cannot rely on onServiceDisconnected to turn the variable false.
+        }
+        Log_OC.v(TAG, "Off message from onPause");
 
         //MainApp.mService.unbindService(MainApp.mConnection);
         //MainApp.mService.stopSelf();

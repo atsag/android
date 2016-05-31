@@ -461,4 +461,6 @@
     <string name="topic_name_summary">MQTT topic that Owncloud will use</string>
     <string name="prefs_category_mqtt">Mqtt broker</string>
 
+
+
 </resources>

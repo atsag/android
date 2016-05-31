@@ -47,6 +47,7 @@ import android.preference.PreferenceCategory;
 import android.preference.PreferenceManager;
 import android.support.annotation.LayoutRes;
 import android.support.annotation.Nullable;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatDelegate;
@@ -68,6 +69,8 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import com.owncloud.android.BuildConfig;
+import com.owncloud.android.IPAddressPreference;
+import com.owncloud.android.MQTTService;
 import com.owncloud.android.MainApp;
 import com.owncloud.android.R;
 import com.owncloud.android.authentication.AccountUtils;
@@ -124,11 +127,18 @@ public class Preferences extends PreferenceActivity
     private ServiceConnection mDownloadServiceConnection, mUploadServiceConnection = null;
 
     //MY CODE
+    LocalBroadcastManager broadcaster;
+
+
     private PreferenceCategory mPrefMQTTCategory;
-    private EditTextPreference mPrefBroker;
+    private IPAddressPreference mPrefBroker;
     private EditTextPreference mPrefTopic;
-    String mBrokerAddress;
-    String mTopic;
+    private String mBrokerAddress;
+    private String mTopic;
+
+    private static String DEFAULT_BROKER_ADDRESS = "192.168.1.6";
+    private static String DEFAULT_MQTT_TOPIC = "$SYS/disk";
+
     //END OF MY CODE
 
     @SuppressWarnings("deprecation")
@@ -400,18 +410,39 @@ public class Preferences extends PreferenceActivity
         }
 
         //My code additions
-
+        broadcaster = LocalBroadcastManager.getInstance(this);
         mPrefMQTTCategory = (PreferenceCategory) findPreference("mqtt_category");
-        mPrefBroker = (EditTextPreference)findPreference("broker");
-        mPrefBroker.setText(mBrokerAddress);
+        mPrefBroker = (IPAddressPreference) findPreference("broker");
+
+        //SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        //SharedPreferences.Editor editor = preferences.edit();
+        //editor.putString("brokerHostName", DEFAULT_BROKER_ADDRESS); // value to store
+        //editor.commit();
+
+        //mPrefBroker.setText(DEFAULT_BROKER_ADDRESS); //default value
 
         mPrefBroker.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
             @Override
             public boolean onPreferenceChange(Preference preference,Object object) {
                 //mPrefBroker.getSharedPreferences().getString(mBrokerAddress,null);
                 mBrokerAddress = mPrefBroker.getEditText().getText().toString();
-                Log.v(TAG,"Just got a new broker address "+mBrokerAddress);
-                //include logic to update mqtt preferences from here
+                mPrefBroker.setText(mBrokerAddress);
+
+
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                SharedPreferences.Editor editor = preferences.edit();
+                editor.putString("brokerHostName", mBrokerAddress); // value to store
+                editor.commit();
+
+
+                Intent intent = new Intent (Preferences.this, MQTTService.class);
+                intent.setAction("com.owncloud.preferences.update_mqtt");
+                intent.putExtra("brokerHostName",mBrokerAddress);
+                intent.putExtra("topicName",mTopic);
+                broadcaster.sendBroadcast(intent);
+               /* intent.setAction("com.mqttservice.restart");
+                broadcaster.sendBroadcast(intent);*/
+                Log.v(TAG,"Just sent the new broker address "+mBrokerAddress);
                 return false;
             }
         });
@@ -419,14 +450,35 @@ public class Preferences extends PreferenceActivity
 
 ;
         mPrefTopic = (EditTextPreference) findPreference("topic");
-
+        //editor.putString("topicName", DEFAULT_MQTT_TOPIC); // value to store
+        //editor.commit();
+        //mPrefTopic.setText(DEFAULT_MQTT_TOPIC);  //default value
 
         mPrefTopic.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
             @Override
             public boolean onPreferenceChange(Preference preference,Object object) {
                 //mPrefBroker.getSharedPreferences().getString(mBrokerAddress,null);
                 mTopic = mPrefTopic.getEditText().getText().toString();
-                Log.v(TAG,"Just got the topic to subscribe to!"+mTopic);
+                mPrefTopic.setText(mTopic);
+
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                SharedPreferences.Editor editor = preferences.edit();
+                editor.putString("topicName", mTopic); // value to store
+                editor.commit();
+
+
+
+                Intent intent = new Intent (Preferences.this, MQTTService.class);
+                intent.setAction("com.owncloud.preferences.update_mqtt");
+                intent.putExtra("brokerHostName",mBrokerAddress);
+                intent.putExtra("topicName",mTopic);
+                broadcaster.sendBroadcast(intent);
+                /*
+                intent.setAction("com.mqttservice.restart");
+                broadcaster.sendBroadcast(intent);
+                */
+                Log.v(TAG,"Just sent the topic, which is "+mTopic);
+
                 //include logic to update mqtt preferences from here
                 return false;
             }

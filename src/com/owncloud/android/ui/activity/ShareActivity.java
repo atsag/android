@@ -292,7 +292,9 @@ public class ShareActivity extends FileActivity
             String link = ((OCShare) (result.getData().get(0))).getShareLink();
             intentToShareLink.putExtra(Intent.EXTRA_TEXT, link);
             intentToShareLink.setType("text/plain");
-            String username = AccountUtils.getUsernameForAccount(getAccount());
+
+            String username = getAccount().name.substring(0, getAccount().name.lastIndexOf('@'));
+            //MY COMMENT username = AccountUtils.getUsernameForAccount(getAccount());
             if (username != null) {
                 intentToShareLink.putExtra(
                     Intent.EXTRA_SUBJECT,

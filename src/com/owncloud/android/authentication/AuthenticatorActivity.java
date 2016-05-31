@@ -498,9 +498,8 @@ public class AuthenticatorActivity extends AccountAuthenticatorActivity
         boolean isPasswordExposed = false;
         if (savedInstanceState == null) {
             if (mAccount != null) {
-                presetUserName =
-                    com.owncloud.android.lib.common.accounts.AccountUtils.
-                        getUsernameForAccount(mAccount);
+                presetUserName = mAccount.name.substring(0, mAccount.name.lastIndexOf('@'));
+                //MY COMMENT com.owncloud.android.lib.common.accounts.AccountUtils.getUsernameForAccount(mAccount);
             }
             
         } else {

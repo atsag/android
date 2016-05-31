@@ -22,15 +22,17 @@
     </PreferenceCategory>
 
 	<PreferenceCategory android:title="@string/prefs_category_mqtt" android:key="mqtt_category">
-		<EditTextPreference android:key="broker"
+		<com.owncloud.android.IPAddressPreference android:key="broker"
 							android:title="@string/broker_address"
 							android:summary="@string/broker_address_summary"
+							android:defaultValue="192.168.1.6"
 							android:inputType="text"/>
 
 		<EditTextPreference android:key="topic"
 							android:title="@string/topic_name"
-							android:summary="@string/topic_name_summary"
-							android:inputType="text"/>
+							android:summary="@string/broker_address_summary"
+							android:defaultValue="$SYS/disk"
+							android:inputType="text" />
 	</PreferenceCategory>
 
     <PreferenceCategory android:title="@string/prefs_category_instant_uploading" android:key="instant_uploading_category">

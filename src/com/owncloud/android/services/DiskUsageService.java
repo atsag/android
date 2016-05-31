@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiskUsageService  extends Service {
 
-    static final int IDLE_SECONDS_LIMIT = 30;
+    static final int IDLE_SECONDS_LIMIT = 60;
     static final int PRECISION_SECONDS = 10; //maximum absolute deviation from seconds limit //repeat the check every minute
     public static boolean USER_NOTIFIED = false;
     BroadcastReceiver receiver;
