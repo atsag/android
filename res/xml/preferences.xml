@@ -31,7 +31,7 @@
 		<EditTextPreference android:key="topic"
 							android:title="@string/topic_name"
 							android:summary="@string/broker_address_summary"
-							android:defaultValue="$SYS/disk"
+							android:defaultValue="SYS/disk"
 							android:inputType="text" />
 	</PreferenceCategory>
 

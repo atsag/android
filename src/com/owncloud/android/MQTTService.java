@@ -130,7 +130,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
     // taken from preferences
     //    topic we want to receive messages about
     //    can include wildcards - e.g.  '#' matches anything
-    private String          topicName            = "test";//"$SYS/disk";
+    private String          topicName            = "test";//"SYS/disk";
 
     
     // defaults - this sample uses very basic defaults for it's interactions 
@@ -971,7 +971,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
      * 
      */
     
-    public  void publishMessageToTopic(String message)
+    public boolean publishMessageToTopic(String message)
     {
     	Boolean retained = false;
     	if (isAlreadyConnected() == false)
@@ -996,6 +996,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
     			mqttClient.publish(topicName, msg, quality_of_service, false);
     			//subscribed = true;
+                return true;
     			
     		}
     		catch (MqttNotConnectedException e) 
@@ -1011,6 +1012,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
                 Log.e("mqtt", "subscribe failed - MQTT exception", e);
             }
     	}
+        return false;
     }
     
     /*

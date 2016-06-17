@@ -157,6 +157,7 @@ public class FileDisplayActivity extends HookActivity
 
     /*My class variables start here*/
     public static Boolean CONTENT_RELOADED = false;
+    private boolean mqtt_publish_result;
     BroadcastReceiver receiver;
     LocalBroadcastManager broadcaster;
     public static Intent mqttService;
@@ -1001,9 +1002,22 @@ public class FileDisplayActivity extends HookActivity
         if (!mBound) {
             bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
         }
-        publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
+        mqtt_publish_result = publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
         Log_OC.v(TAG, "OnResume published ON message, but did it arrive?");
-
+        if (!mqtt_publish_result) {
+            final Timer timer =new Timer();
+            //while (true)
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    mqtt_publish_result=publishMessage("ON");
+                    if (mqtt_publish_result){
+                        Log.v(TAG,"Succeeded by persisting");
+                        timer.cancel();
+                    }
+                }
+            },10,500); //retry to send the message.
+        }
 //        Intent intent = new Intent(this,RemountDiskActivity.class);
 //        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 //        startActivity(intent);
@@ -1994,7 +2008,11 @@ public class FileDisplayActivity extends HookActivity
         browseToRoot();
     }
 
-    public static void publishMessage(String message){
-        if (mBound) mService.publishMessageToTopic(message); //if mBound is true, then mService will have started
+    public static boolean publishMessage(String message){
+        if (mBound) {
+            return mService.publishMessageToTopic(message); //if mBound is true, then mService will have started
+        }
+        Log.v(TAG,"publishMessage returned false, however mBound is false");
+        return false;
     }
 }

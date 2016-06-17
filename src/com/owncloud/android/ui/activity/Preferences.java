@@ -137,7 +137,7 @@ public class Preferences extends PreferenceActivity
     private String mTopic;
 
     private static String DEFAULT_BROKER_ADDRESS = "192.168.1.6";
-    private static String DEFAULT_MQTT_TOPIC = "$SYS/disk";
+    private static String DEFAULT_MQTT_TOPIC = "SYS/disk";
 
     //END OF MY CODE
 
