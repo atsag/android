@@ -51,7 +51,7 @@ import com.owncloud.android.lib.common.operations.RemoteOperationResult;
 import com.owncloud.android.lib.common.utils.Log_OC;
 import com.owncloud.android.lib.resources.shares.ShareType;
 import com.owncloud.android.lib.resources.status.OwnCloudVersion;
-import com.owncloud.android.lib.resources.users.GetRemoteUserNameOperation;
+import com.owncloud.android.lib.resources.users.GetRemoteUserInfoOperation;
 import com.owncloud.android.operations.CheckCurrentCredentialsOperation;
 import com.owncloud.android.operations.CopyFileOperation;
 import com.owncloud.android.operations.CreateFolderOperation;
@@ -447,8 +447,7 @@ public class OperationsService extends Service {
                     if (mLastTarget == null || !mLastTarget.equals(next.first)) {
                         mLastTarget = next.first;
                         if (mLastTarget.mAccount != null) {
-                            OwnCloudAccount ocAccount = new OwnCloudAccount(mLastTarget.mAccount,
-                                    mService);
+                            OwnCloudAccount ocAccount = new OwnCloudAccount(mLastTarget.mAccount, mService);
                             mOwnCloudClient = OwnCloudClientManagerFactory.getDefaultSingleton().
                                     getClientFor(ocAccount, mService);
 
@@ -586,8 +585,11 @@ public class OperationsService extends Service {
                                 expirationDate
                         );
 
-                        boolean publicUpload = operationIntent.getBooleanExtra(EXTRA_SHARE_PUBLIC_UPLOAD, false);
-                        ((UpdateShareViaLinkOperation) operation).setPublicUpload(publicUpload);
+                        if (operationIntent.hasExtra(EXTRA_SHARE_PUBLIC_UPLOAD)) {
+                            ((UpdateShareViaLinkOperation) operation).setPublicUpload(
+                                operationIntent.getBooleanExtra(EXTRA_SHARE_PUBLIC_UPLOAD, false)
+                            );
+                        }
 
                     } else if (shareId > 0) {
                         operation = new UpdateSharePermissionsOperation(shareId);
@@ -640,7 +642,7 @@ public class OperationsService extends Service {
 
                 } else if (action.equals(ACTION_GET_USER_NAME)) {
                     // Get User Name
-                    operation = new GetRemoteUserNameOperation();
+                    operation = new GetRemoteUserInfoOperation();
                     
                 } else if (action.equals(ACTION_RENAME)) {
                     // Rename file or folder

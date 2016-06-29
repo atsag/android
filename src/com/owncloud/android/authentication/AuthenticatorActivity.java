@@ -79,7 +79,8 @@ import com.owncloud.android.lib.common.operations.RemoteOperationResult;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult.ResultCode;
 import com.owncloud.android.lib.common.utils.Log_OC;
 import com.owncloud.android.lib.resources.status.OwnCloudVersion;
-import com.owncloud.android.lib.resources.users.GetRemoteUserNameOperation;
+import com.owncloud.android.lib.resources.users.GetRemoteUserInfoOperation;
+import com.owncloud.android.lib.resources.users.GetRemoteUserInfoOperation.UserInfo;
 import com.owncloud.android.operations.DetectAuthenticationMethodOperation.AuthenticationMethod;
 import com.owncloud.android.operations.GetServerInfoOperation;
 import com.owncloud.android.operations.OAuth2GetAccessToken;
@@ -1029,7 +1030,7 @@ public class AuthenticatorActivity extends AccountAuthenticatorActivity
         } else if (operation instanceof OAuth2GetAccessToken) {
             onGetOAuthAccessTokenFinish(result);
 
-        } else if (operation instanceof GetRemoteUserNameOperation) {
+        } else if (operation instanceof GetRemoteUserInfoOperation) {
             onGetUserNameFinish(result);
         }
 
@@ -1039,7 +1040,12 @@ public class AuthenticatorActivity extends AccountAuthenticatorActivity
         mWaitingForOpId = Long.MAX_VALUE;
         if (result.isSuccess()) {
             boolean success = false;
-            String username = (String) result.getData().get(0);
+            String username;
+            if (result.getData().get(0) instanceof UserInfo) {
+                username = ((UserInfo) result.getData().get(0)).mDisplayName;
+            } else {
+                username = (String) result.getData().get(0);
+            }
 
             if ( mAction == ACTION_CREATE) {
                 mUsernameInput.setText(username);
@@ -1593,6 +1599,18 @@ public class AuthenticatorActivity extends AccountAuthenticatorActivity
             mAccountMgr.setUserData(
                     mAccount, Constants.KEY_OC_BASE_URL,   mServerInfo.mBaseUrl
             );
+            if (authResult.getData() != null) {
+                try {
+                    UserInfo userInfo = (UserInfo) authResult.getData().get(0);
+                    mAccountMgr.setUserData(
+                        mAccount, Constants.KEY_DISPLAY_NAME, userInfo.mDisplayName
+                    );
+                } catch (ClassCastException c) {
+                    Log_OC.w(TAG, "Couldn't get display name for " + username);
+                }
+            } else {
+                Log_OC.w(TAG, "Couldn't get display name for " + username);
+            }
 
             if (isSaml) {
                 mAccountMgr.setUserData(mAccount, Constants.KEY_SUPPORTS_SAML_WEB_SSO, "TRUE"); 

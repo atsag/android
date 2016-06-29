@@ -44,7 +44,6 @@
   <string name="sync_string_files">پرونده‌ها</string>
   <string name="setup_btn_connect">اتصال</string>
   <string name="uploader_btn_upload_text">بارگزاری</string>
-  <string name="uploader_top_message">انتخاب پوشه آپلود:</string>
   <string name="uploader_wrn_no_account_title">هیچ حسابی یافت نشد</string>
   <string name="uploader_wrn_no_account_setup_btn_text">نصب</string>
   <string name="uploader_wrn_no_account_quit_btn_text">خروج</string>
@@ -158,7 +157,6 @@
   <string name="auth_expired_oauth_token_toast">احراز هویت شما منقضی شده است. لطفا، مجددا احراز هویت فرمایید.</string>
   <string name="auth_unsupported_auth_method">سرور این نوع احراز هویت را پشتیبانی نمی‌کند</string>
   <string name="auth_unsupported_multiaccount">%1$s چند اکانته بودن را پشتیبانی نمی‌کند</string>
-  <string name="favorite">برگزیده</string>
   <string name="common_rename">تغییرنام</string>
   <string name="common_remove">حذف</string>
   <string name="confirmation_remove_alert">آیا واقعا می‌خواهید %1$s حذف شود ؟</string>
