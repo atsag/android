@@ -158,6 +158,9 @@ public class FileDisplayActivity extends HookActivity
     /*My class variables start here*/
     public static Boolean CONTENT_RELOADED = false;
     private boolean mqtt_publish_result;
+    private static String pending_message;
+    private boolean mqtt_message_received;
+    private int mqtt_publish_retries;
     BroadcastReceiver receiver;
     LocalBroadcastManager broadcaster;
     public static Intent mqttService;
@@ -213,30 +216,49 @@ public class FileDisplayActivity extends HookActivity
         receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                publishMessage("OFF");
-                setContentView(R.layout.hard_disk_reconnect);
-                Log.d(TAG,"message from notifyDiskDisconnected received - disk unmounted");
-                final Intent reply_intent = new Intent(FileDisplayActivity.this,DiskUsageService.class);
-                reply_intent.setAction("com.filedisplayactivity.broadcast_received");
-                broadcaster.sendBroadcast(reply_intent);
-                Button RemountButton = (Button)findViewById(R.id.remount_disk);
-                RemountButton.setOnClickListener(new View.OnClickListener() {
+                if (intent.getAction().equals("com.mqttservice.message_received")){
 
-                    @Override
-                    public void onClick(View v) {
-                        // TODO Auto-generated method stub
-                        Log.d(TAG, "Remount Button Clicked");
-                        stopService(diskusageService);
-                        //rcode
-                        stopService(mqttService);
-                        unbindService(mConnection);
-                        mBound = false; //cannot rely on onServiceDisconnected to update the value of mBound.
-                        //DiskUsageService.USER_NOTIFIED=false; // restore alerts
-                        reply_intent.setAction("com.filedisplayactivity.user_notified_reset"); //MUST BE THE SAME WITH RELEVANT ACTION IN FILEDISPLAYACTIVITY RECEIVER
-                        broadcaster.sendBroadcast(reply_intent);
-                        FileDisplayActivity.this.recreate(); // this also takes care of the OFF state of the hard disk.
+                    if (pending_message.equals(intent.getStringExtra("message_received"))) {
+                        mqtt_message_received=true;
+                        Log.v(TAG,"The pending message has been received");
+                    }else
+                    {
+                        Log.v(TAG,"A message different from the pending has been received");
                     }
-                });
+
+
+                }else if (intent.getAction().equals("com.diskusageservice.remount_action")) {
+
+                    publishMessage("OFF");
+                    setContentView(R.layout.hard_disk_reconnect);
+                    Log.d(TAG, "message from notifyDiskDisconnected received - disk unmounted");
+                    final Intent reply_intent = new Intent(FileDisplayActivity.this, DiskUsageService.class);
+                    reply_intent.setAction("com.filedisplayactivity.broadcast_received");
+
+                    broadcaster.sendBroadcast(reply_intent);
+
+
+                    Button RemountButton = (Button) findViewById(R.id.remount_disk);
+                    RemountButton.setOnClickListener(new View.OnClickListener() {
+
+                        @Override
+                        public void onClick(View v) {
+                            // TODO Auto-generated method stub
+                            Log.d(TAG, "Remount Button Clicked");
+                            stopService(diskusageService);
+                            //rcode
+                            stopService(mqttService);
+                            unbindService(mConnection);
+                            mBound = false; //cannot rely on onServiceDisconnected to update the value of mBound.
+                            //DiskUsageService.USER_NOTIFIED=false; // restore alerts
+                            reply_intent.setAction("com.filedisplayactivity.user_notified_reset"); //MUST BE THE SAME WITH RELEVANT ACTION IN FILEDISPLAYACTIVITY RECEIVER
+                            broadcaster.sendBroadcast(reply_intent);
+
+
+                            FileDisplayActivity.this.recreate(); // this also takes care of the OFF state of the hard disk.
+                        }
+                    });
+                }
             }
         };
 
@@ -408,8 +430,9 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onStart() {
         Log_OC.v(TAG, "onStart() start");
-        LocalBroadcastManager.getInstance(this).registerReceiver((receiver),
-                new IntentFilter("com.diskusageservice.remountaction"));
+        IntentFilter actions = new IntentFilter("com.diskusageservice.remount_action");
+        actions.addAction("com.mqttservice.message_received");
+        LocalBroadcastManager.getInstance(this).registerReceiver((receiver),actions);
         super.onStart();
         Log_OC.v(TAG, "onStart() end");
     }
@@ -999,25 +1022,36 @@ public class FileDisplayActivity extends HookActivity
         Log_OC.v(TAG, "onResume() start");
 
         //My code starts here
+
+        Intent focus_change = new Intent(this,DiskUsageService.class);
+        focus_change.setAction("com.filedisplayactivity.has_focus");
+        focus_change.putExtra("focus",true);
+
         if (!mBound) {
             bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
         }
-        mqtt_publish_result = publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
+        publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
         Log_OC.v(TAG, "OnResume published ON message, but did it arrive?");
-        if (!mqtt_publish_result) {
-            final Timer timer =new Timer();
-            //while (true)
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    mqtt_publish_result=publishMessage("ON");
-                    if (mqtt_publish_result){
-                        Log.v(TAG,"Succeeded by persisting");
-                        timer.cancel();
-                    }
+
+        //ORIGINAL CODE if (!mqtt_publish_result)
+
+        mqtt_publish_retries=0;
+        final Timer timer =new Timer();
+        //while (true)
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (!mqtt_message_received) {
+                    publishMessage("ON");
+                    mqtt_publish_retries++;
                 }
-            },10,500); //retry to send the message.
-        }
+                else {
+                    Log.v(TAG,"Succeeded by persisting "+mqtt_publish_retries+" times");
+                    timer.cancel();
+                }
+            }
+        },1000,500); //retry to send the message.
+
 //        Intent intent = new Intent(this,RemountDiskActivity.class);
 //        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 //        startActivity(intent);
@@ -1085,8 +1119,11 @@ public class FileDisplayActivity extends HookActivity
             unbindService(mConnection);
             mBound = false; //cannot rely on onServiceDisconnected to turn the variable false.
         }
-        Log_OC.v(TAG, "Off message from onPause");
-
+        Log_OC.v(TAG, "Off message from onPause - Notifying of change of visibility status");
+        Intent focus_change = new Intent(this,DiskUsageService.class);
+        focus_change.setAction("com.filedisplayactivity.has_focus");
+        focus_change.putExtra("focus",false);
+        broadcaster.sendBroadcast(focus_change);
         //MainApp.mService.unbindService(MainApp.mConnection);
         //MainApp.mService.stopSelf();
 
@@ -2008,11 +2045,13 @@ public class FileDisplayActivity extends HookActivity
         browseToRoot();
     }
 
-    public static boolean publishMessage(String message){
+    public static void publishMessage(String message){
         if (mBound) {
-            return mService.publishMessageToTopic(message); //if mBound is true, then mService will have started
+            mService.publishMessageToTopic(message); //if mBound is true, then mService will have started
         }
-        Log.v(TAG,"publishMessage returned false, however mBound is false");
-        return false;
+        else {
+            Log.v(TAG, "Tried to publish but mBound is false");
+        }
+        pending_message = message;
     }
 }

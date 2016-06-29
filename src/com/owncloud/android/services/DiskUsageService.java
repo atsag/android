@@ -25,9 +25,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiskUsageService  extends Service {
 
-    static final int IDLE_SECONDS_LIMIT = 60;
+    static final int IDLE_SECONDS_LIMIT = 300;
     static final int PRECISION_SECONDS = 10; //maximum absolute deviation from seconds limit //repeat the check every minute
     public static boolean USER_NOTIFIED = false;
+    static boolean FILE_DISPLAY_ACTIVE = true;
     BroadcastReceiver receiver;
     static final String TAG = DiskUsageService.class.getSimpleName();
     LocalBroadcastManager broadcaster;
@@ -54,6 +55,9 @@ public class DiskUsageService  extends Service {
                 }else if(intent.getAction().equals("com.filedisplayactivity.broadcast_received")){
                     Log.v(TAG, "User was notified on his screen");
                     USER_NOTIFIED = true; //it should have been false;
+                }else if(intent.getAction().equals("com.filedisplayactivity.has_focus")){
+                    Log.v(TAG,"FileDisplayActivity has just either appeared or disappeared");
+                    FILE_DISPLAY_ACTIVE = intent.getBooleanExtra("focus", false);
                 }
 
             }
@@ -72,7 +76,7 @@ public class DiskUsageService  extends Service {
                 }
                 long time_idle_in_seconds = TimeUnit.MILLISECONDS.toSeconds(time_idle);
                 if (time_idle_in_seconds>IDLE_SECONDS_LIMIT){
-                    if(!USER_NOTIFIED){
+                    if(!USER_NOTIFIED && FILE_DISPLAY_ACTIVE){
                         /*
                         Intent intent = new Intent(DiskUsageService.this,FileDisplayActivity.class);
                         startActivity(intent);
@@ -86,7 +90,7 @@ public class DiskUsageService  extends Service {
     }
     public void notifyDiskDisconnected() {
         final Intent intent = new Intent(DiskUsageService.this,FileDisplayActivity.class);
-        intent.setAction("com.diskusageservice.remountaction"); //MUST BE THE SAME WITH RELEVANT ACTION IN FILEDISPLAYACTIVITY RECEIVER
+        intent.setAction("com.diskusageservice.remount_action"); //MUST BE THE SAME WITH RELEVANT ACTION IN FILEDISPLAYACTIVITY RECEIVER
         broadcaster.sendBroadcast(intent);
         Log.v(TAG,"notifyDiskDisconnected has sent broadcast");
     }
@@ -94,6 +98,7 @@ public class DiskUsageService  extends Service {
     public int onStartCommand(final Intent intent, int flags, final int startId){
         IntentFilter filter = new IntentFilter("com.filedisplayactivity.user_notified_reset");
         filter.addAction("com.filedisplayactivity.broadcast_received");
+        filter.addAction("com.filedisplayactivity.has_focus");
         LocalBroadcastManager.getInstance(this).registerReceiver((receiver),filter);
         return  START_STICKY;
     }

@@ -184,7 +184,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
     /* MY VARIABLES */
 
-   // /LocalBroadcastManager broadcaster;
+   // LocalBroadcastManager broadcaster;
    // long IDLE_SECONDS_LIMIT = 30;
 
     Handler handler = new Handler();
@@ -230,27 +230,47 @@ public class MQTTService extends Service implements MqttSimpleCallback
         PreferenceManager preferenceManager ;
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
 
-        brokerHostName=prefs.getString("brokerHostName",null);
-        topicName = prefs.getString("topicName",null);
+        String updatedBrokerHostName=prefs.getString("brokerHostName",brokerHostName);
+        String updatedTopicName = prefs.getString("topicName",topicName);
 
-        Log.v(TAG, "Updated broker address is: " + brokerHostName);
-        Log.v(TAG, "Updated Mqtt topic is: " + topicName);
+        if (updatedBrokerHostName!=null && !updatedBrokerHostName.equals(brokerHostName)) {
+            Log.v(TAG, "The updated broker address is: " + brokerHostName);
+            brokerHostName = updatedBrokerHostName;
+        }
+        if (updatedTopicName!=null && !updatedTopicName.equals(topicName)) {
+            Log.v(TAG, "The updated Mqtt topic is: " + topicName);
+            topicName = updatedTopicName;
+        }
 
         mqtt_preferences_receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 //SharedPreferences settings = getSharedPreferences("com.owncloud.android.ui.Preferences",MODE_PRIVATE);
                 //String test = new Preferences().getSharedPreferences("",0).getString("brokerHostName",null);
-                brokerHostName = intent.getStringExtra("brokerHostName");
-                topicName = intent.getStringExtra("topicName");
 
-                Log.v(TAG, "New broker address is: " + brokerHostName);
-                Log.v(TAG, "New Mqtt topic is: " + topicName);
-                if (brokerHostName != null && topicName != null){
+//////////////////////////
+                String updatedBrokerHostName = intent.getStringExtra("brokerHostName");
+                String updatedTopicName = intent.getStringExtra("topicName");
+
+                if (updatedBrokerHostName!=null && !updatedBrokerHostName.equals(brokerHostName)) {
+                    Log.v(TAG, "The updated broker address is: " + brokerHostName);
+                    brokerHostName = updatedBrokerHostName;
                     RESTART = true;
                     stopSelf();
                 }
-
+                if (updatedTopicName!=null && !updatedTopicName.equals(topicName)) {
+                    Log.v(TAG, "The updated Mqtt topic is: " + topicName);
+                    topicName = updatedTopicName;
+                    RESTART = true;
+                    stopSelf();
+                }
+///////////////////////////
+                Log.v(TAG, "New broker address is: " + brokerHostName);
+                Log.v(TAG, "New Mqtt topic is: " + topicName);
+        /*        if (brokerHostName != null && topicName != null){
+                    stopSelf();
+                }
+*/
                 //Log.v(TAG,"test is "+test);
             }
         };
@@ -830,18 +850,28 @@ public class MQTTService extends Service implements MqttSimpleCallback
         //   will need to safely store the data that it receives
         if (addReceivedMessageToStore(topic, messageBody))
         {
+         /*MY COMMENT
             // this is a new message - a value we haven't seen before
             
             //
             // inform the app (for times when the Activity UI is running) of the 
             //   received message so the app UI can be updated with the new data
             broadcastReceivedMessage(topic, messageBody);
-            
+        */
             //
             // inform the user (for times when the Activity UI isn't running) 
             //   that there is new data available
 
             notifyUser("New data received Edited", topic, messageBody);
+            //MY CODE
+
+            Intent reception_of_message = new Intent("com.mqttservice.message_received");
+            reception_of_message.putExtra("message_received",messageBody);
+            LocalBroadcastManager.getInstance(this).sendBroadcast(reception_of_message);
+
+            Log.v(TAG,"New data received Edited "+messageBody);
+
+            //MY CODE END
         }
 
         /*
@@ -971,7 +1001,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
      * 
      */
     
-    public boolean publishMessageToTopic(String message)
+    public void publishMessageToTopic(String message)
     {
     	Boolean retained = false;
     	if (isAlreadyConnected() == false)
@@ -985,8 +1015,8 @@ public class MQTTService extends Service implements MqttSimpleCallback
     		{
     			
     			Log.d(TAG, "MQTT Publish Message Rcvd: " + message);
-    			
-    			
+
+
     			// String[] tps = { topicName };
     			// MqttPayload msg = new MqttPayload(message.getBytes());
     			byte[] msg = message.getBytes();
@@ -996,7 +1026,6 @@ public class MQTTService extends Service implements MqttSimpleCallback
 
     			mqttClient.publish(topicName, msg, quality_of_service, false);
     			//subscribed = true;
-                return true;
     			
     		}
     		catch (MqttNotConnectedException e) 
@@ -1012,7 +1041,6 @@ public class MQTTService extends Service implements MqttSimpleCallback
                 Log.e("mqtt", "subscribe failed - MQTT exception", e);
             }
     	}
-        return false;
     }
     
     /*
@@ -1040,7 +1068,7 @@ public class MQTTService extends Service implements MqttSimpleCallback
             {
                 String[] topics = { topicName };
                 mqttClient.subscribe(topics, qualitiesOfService);
-                
+
                 subscribed = true;
             } 
             catch (MqttNotConnectedException e) 
