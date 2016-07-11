@@ -32,14 +32,10 @@ import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
-import com.owncloud.android.MQTTService;
-import com.owncloud.android.MainApp;
+import com.owncloud.android.services.MQTTService;
 import com.owncloud.android.db.PreferenceManager;
 import com.owncloud.android.db.UploadResult;
 import com.owncloud.android.lib.common.utils.Log_OC;
-import com.owncloud.android.ui.activity.FileDisplayActivity;
-
-import java.io.File;
 
 /**
  * Receives all connectivity action from Android OS at all times and performs

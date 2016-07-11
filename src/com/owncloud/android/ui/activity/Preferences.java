@@ -25,6 +25,7 @@ import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.accounts.AccountManagerCallback;
 import android.accounts.AccountManagerFuture;
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -52,7 +53,6 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatDelegate;
 import android.support.v7.widget.Toolbar;
-import android.text.Editable;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -69,8 +69,8 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import com.owncloud.android.BuildConfig;
-import com.owncloud.android.IPAddressPreference;
-import com.owncloud.android.MQTTService;
+import com.owncloud.android.utils.IPAddressPreference;
+import com.owncloud.android.services.MQTTService;
 import com.owncloud.android.MainApp;
 import com.owncloud.android.R;
 import com.owncloud.android.authentication.AccountUtils;
@@ -136,9 +136,6 @@ public class Preferences extends PreferenceActivity
     private EditTextPreference mPrefTopic;
     private String mBrokerAddress;
     private String mTopic;
-
-    private static String DEFAULT_BROKER_ADDRESS = "192.168.1.6";
-    private static String DEFAULT_MQTT_TOPIC = "SYS/disk";
 
     //END OF MY CODE
 
@@ -411,8 +408,8 @@ public class Preferences extends PreferenceActivity
         }
 
         //My code additions
-        broadcaster = LocalBroadcastManager.getInstance(this);
-        mPrefMQTTCategory = (PreferenceCategory) findPreference("mqtt_category");
+        final Activity current_preference_activity = this;
+        //mPrefMQTTCategory = (PreferenceCategory) findPreference("mqtt_category");
         mPrefBroker = (IPAddressPreference) findPreference("broker");
 
         //SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -440,11 +437,12 @@ public class Preferences extends PreferenceActivity
                 intent.setAction("com.owncloud.preferences.update_mqtt");
                 intent.putExtra("brokerHostName",mBrokerAddress);
                 intent.putExtra("topicName",mTopic);
-                broadcaster.sendBroadcast(intent);
+                LocalBroadcastManager.getInstance(current_preference_activity).sendBroadcast(intent);
                /* intent.setAction("com.mqttservice.restart");
                 broadcaster.sendBroadcast(intent);*/
                 Log.v(TAG,"Just sent the new broker address "+mBrokerAddress);
-                return false;
+                startActivity(new Intent(current_preference_activity,Preferences.class));
+                return true;
             }
         });
         /**/
@@ -457,7 +455,7 @@ public class Preferences extends PreferenceActivity
 
         mPrefTopic.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
             @Override
-            public boolean onPreferenceChange(Preference preference,Object object) {
+            public boolean onPreferenceChange(Preference preference,Object objechttpt) {
                 //mPrefBroker.getSharedPreferences().getString(mBrokerAddress,null);
                 mTopic = mPrefTopic.getEditText().getText().toString();
                 mPrefTopic.setText(mTopic);
@@ -473,7 +471,7 @@ public class Preferences extends PreferenceActivity
                 intent.setAction("com.owncloud.preferences.update_mqtt");
                 intent.putExtra("brokerHostName",mBrokerAddress);
                 intent.putExtra("topicName",mTopic);
-                broadcaster.sendBroadcast(intent);
+                LocalBroadcastManager.getInstance(current_preference_activity).sendBroadcast(intent);
                 /*
                 intent.setAction("com.mqttservice.restart");
                 broadcaster.sendBroadcast(intent);
@@ -481,7 +479,8 @@ public class Preferences extends PreferenceActivity
                 Log.v(TAG,"Just sent the topic, which is "+mTopic);
 
                 //include logic to update mqtt preferences from here
-                return false;
+                startActivity(new Intent(current_preference_activity,Preferences.class));
+                return true;
             }
         });
         /**/

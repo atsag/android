@@ -40,7 +40,6 @@ import android.content.res.Resources.NotFoundException;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.SystemClock;
 import android.os.Parcelable;
 import android.preference.PreferenceManager;
 import android.support.design.widget.Snackbar;
@@ -52,31 +51,23 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.GravityCompat;
 import android.support.v7.app.AlertDialog;
 import android.util.Log;
-import android.view.Gravity;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
-import android.widget.PopupWindow;
 
-import com.owncloud.android.MQTTService;
+import com.owncloud.android.services.MQTTService;
 import com.owncloud.android.MainApp;
 import com.owncloud.android.R;
-import com.owncloud.android.authentication.AccountUtils;
 import com.owncloud.android.datamodel.FileDataStorageManager;
 import com.owncloud.android.datamodel.OCFile;
 import com.owncloud.android.files.services.FileDownloader;
 import com.owncloud.android.files.services.FileDownloader.FileDownloaderBinder;
 import com.owncloud.android.files.services.FileUploader;
 import com.owncloud.android.files.services.FileUploader.FileUploaderBinder;
-import com.owncloud.android.lib.common.OwnCloudClient;
-import com.owncloud.android.lib.common.SimpleFactoryManager;
-import com.owncloud.android.lib.common.accounts.AccountTypeUtils;
 import com.owncloud.android.lib.common.operations.RemoteOperation;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult;
 import com.owncloud.android.lib.common.operations.RemoteOperationResult.ResultCode;
@@ -114,7 +105,6 @@ import java.util.TimerTask;
 
 import java.util.ArrayList;
 
-import com.owncloud.android.MainApp.*;
 /**
  * Displays, what files the user has available in his ownCloud. This is the main view.
  */
@@ -156,18 +146,17 @@ public class FileDisplayActivity extends HookActivity
     private OCFile mWaitingToSend;
 
     /*My class variables start here*/
-    public static Boolean CONTENT_RELOADED = false;
-    private boolean mqtt_publish_result;
+    private static final int MAX_MQTT_RETRIES = 120;
     private static String pending_message;
     private boolean mqtt_message_received;
     private int mqtt_publish_retries;
     BroadcastReceiver receiver;
     LocalBroadcastManager broadcaster;
-    public static Intent mqttService;
-    public static Intent diskusageService;
-    public static MQTTService mService;
+    private static Intent mqttService;
+    private static Intent diskusageService;
+    private static MQTTService mService;
     private static boolean mBound;
-    public static ServiceConnection mConnection = new ServiceConnection() {
+    private static ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,
@@ -184,7 +173,7 @@ public class FileDisplayActivity extends HookActivity
 
             mBound = true;
             String message = "ON";
-            publishMessage(message);
+            //publishMessage(message);
 
 //            mService.stopSelf();
 //            mService.unbindService(mConnection);
@@ -202,6 +191,9 @@ public class FileDisplayActivity extends HookActivity
     };
 // New class variables end here
 
+//My method
+
+private Boolean getmqttmessagestatus(){return mqtt_message_received;}
 
 
     /*My class variables end here*/
@@ -216,18 +208,17 @@ public class FileDisplayActivity extends HookActivity
         receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if (intent.getAction().equals("com.mqttservice.message_received")){
+                if (intent.getAction().equals("com.mqttservice.message_received")) {
 
                     if (pending_message.equals(intent.getStringExtra("message_received"))) {
-                        mqtt_message_received=true;
-                        Log.v(TAG,"The pending message has been received");
-                    }else
-                    {
-                        Log.v(TAG,"A message different from the pending has been received");
+                        mqtt_message_received = true;
+                        Log.v(TAG, "The pending message has been received");
+                    } else {
+                        Log.v(TAG, "A message different from the pending has been received");
                     }
 
 
-                }else if (intent.getAction().equals("com.diskusageservice.remount_action")) {
+                } else if (intent.getAction().equals("com.diskusageservice.remount_action")) {
 
                     publishMessage("OFF");
                     setContentView(R.layout.hard_disk_reconnect);
@@ -266,30 +257,22 @@ public class FileDisplayActivity extends HookActivity
 //        final mqttservice = new Intent(this, MQTTService.class);
 
 
-
-//SOS ON ERROR UNCOMMENT THE FOLLOWING TWO LINES!!!!
-
-
-        mqttService= new Intent(this, MQTTService.class); // "this" was, MainApp.mContext.
+        mqttService = new Intent(this, MQTTService.class); // "this" was, MainApp.mContext.
         startService(mqttService);
-
-
-//SOS ON ERROR UNCOMMENT THE PREVIOUS TWO LINES!!!!
 
 
         //bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
         //publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
 
-        Log.v(TAG,"Disk Service Starting");
+        Log.v(TAG, "Disk Service Starting");
 
         diskusageService = new Intent(this, DiskUsageService.class);
         startService(diskusageService);
 
-        Log.v(TAG,"Disk Service Started");
+        Log.v(TAG, "Disk Service Started");
 
 //below line stops the mqttservice.
 //        stopService(mqttService);
-
 
 //-----------------------------------modifications end
 
@@ -342,22 +325,6 @@ public class FileDisplayActivity extends HookActivity
         // enable ActionBar app icon to behave as action to toggle nav drawer
         //getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
-
-        /* MY CODE - PLEASE UNCOMMENT BUTTON CODE AS WELL
-        Button remount_button;
-        remount_button = (Button)findViewById(R.id.remount_button);
-        remount_button.setOnClickListener(new View.OnClickListener() {
-
-			@Override
-			public void onClick(View v) {
-				// TODO Auto-generated method stub
-				Log.d(TAG, "Stop Svc Button Clicked");
-                setContentView(R.layout.hard_disk_reconnect);
-			}
-		});
-
-
-        */
 
         // Init Fragment without UI to retain AsyncTask across configuration changes
         FragmentManager fm = getSupportFragmentManager();
@@ -1018,50 +985,52 @@ public class FileDisplayActivity extends HookActivity
     @Override
     protected void onResume() {
 
-
         Log_OC.v(TAG, "onResume() start");
+        super.onResume();
+    //My code starts here
+    Intent focus_change = new Intent(this, DiskUsageService.class);
+    focus_change.setAction("com.filedisplayactivity.has_focus");
+    focus_change.putExtra("focus", true);
 
-        //My code starts here
+    if (!mBound) {
+        bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
+    }
+    publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
+    Log_OC.v(TAG, "OnResume published ON message, but did it arrive?");
 
-        Intent focus_change = new Intent(this,DiskUsageService.class);
-        focus_change.setAction("com.filedisplayactivity.has_focus");
-        focus_change.putExtra("focus",true);
-
-        if (!mBound) {
-            bindService(mqttService, mConnection, Context.BIND_AUTO_CREATE);
-        }
-        publishMessage("ON"); //turn on the hard disk - maybe will be done by bindService?
-        Log_OC.v(TAG, "OnResume published ON message, but did it arrive?");
-
-        //ORIGINAL CODE if (!mqtt_publish_result)
-
-        mqtt_publish_retries=0;
-        final Timer timer =new Timer();
-        //while (true)
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                if (!mqtt_message_received) {
+    //ORIGINAL CODE if (!mqtt_publish_result)
+    mqtt_message_received = false;
+    mqtt_publish_retries = 0;
+    final boolean mqtt_publish_success = false;
+    final Timer timer = new Timer();
+    //while (true)
+    timer.schedule(new TimerTask() {
+        @Override
+        public void run() {
+            if (!getmqttmessagestatus()) {
+                if (mqtt_publish_retries < MAX_MQTT_RETRIES) {
                     publishMessage("ON");
                     mqtt_publish_retries++;
                 }
-                else {
-                    Log.v(TAG,"Succeeded by persisting "+mqtt_publish_retries+" times");
-                    timer.cancel();
-                }
+            } else {
+                if (mqtt_publish_success)
+                    Log.v(TAG, "Succeeded by persisting " + mqtt_publish_retries + " times");
+                timer.cancel();
             }
-        },1000,500); //retry to send the message.
+        }
+    }, 1000, 500); //retry to send the message.
 
-//        Intent intent = new Intent(this,RemountDiskActivity.class);
+
+
+
 //        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 //        startActivity(intent);
 
 
-        //setContentView(R.layout.hard_disk_reconnect);
+    //setContentView(R.layout.hard_disk_reconnect);
 
-        //My code ends here
+    //My code ends here
 
-        super.onResume();
         // refresh Navigation Drawer account list
         mNavigationDrawerAdapter.updateAccountList();
 
@@ -1103,6 +1072,11 @@ public class FileDisplayActivity extends HookActivity
         popup.showAtLocation(layout, Gravity.NO_GRAVITY,0,0);
         SystemClock.sleep(10000);
         setContentView(R.layout.files); */
+
+
+
+
+
         Log_OC.v(TAG, "onResume() end");
 
     }

@@ -22,7 +22,8 @@
     </PreferenceCategory>
 
 	<PreferenceCategory android:title="@string/prefs_category_mqtt" android:key="mqtt_category">
-		<com.owncloud.android.IPAddressPreference android:key="broker"
+		<com.owncloud.android.utils.IPAddressPreference
+			android:key="broker"
 							android:title="@string/broker_address"
 							android:summary="@string/broker_address_summary"
 							android:defaultValue="192.168.1.6"

@@ -90,9 +90,6 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ui.activity.RemountDiskActivity" >
-        </activity>
 
         <activity
             android:name=".ui.activity.Preferences"
@@ -221,7 +218,7 @@
         </receiver>
 
         <service android:name=".services.observer.FileObserverService" />
-        <service android:name=".MQTTService" />
+        <service android:name=".services.MQTTService" />
         <service android:name=".services.DiskUsageService" /> <!-- these are my services, they were not there before! !-->
 
         <activity
@@ -250,5 +247,7 @@
                   android:label="@string/manage_space_title"
                   android:theme="@style/Theme.ownCloud" />
     </application>
+
+
 
 </manifest>

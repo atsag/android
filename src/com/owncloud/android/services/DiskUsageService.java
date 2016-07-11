@@ -25,14 +25,13 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiskUsageService  extends Service {
 
-    static final int IDLE_SECONDS_LIMIT = 300;
-    static final int PRECISION_SECONDS = 10; //maximum absolute deviation from seconds limit //repeat the check every minute
-    public static boolean USER_NOTIFIED = false;
-    static boolean FILE_DISPLAY_ACTIVE = true;
-    BroadcastReceiver receiver;
-    static final String TAG = DiskUsageService.class.getSimpleName();
-    LocalBroadcastManager broadcaster;
-
+    private static final int IDLE_SECONDS_LIMIT = 300;
+    private static final int PRECISION_SECONDS = 10; //maximum absolute deviation from seconds limit //repeat the check every minute
+    private static boolean USER_NOTIFIED = false;
+    private static boolean FILE_DISPLAY_ACTIVE = true;
+    private BroadcastReceiver receiver;
+    private static final String TAG = DiskUsageService.class.getSimpleName();
+    private LocalBroadcastManager broadcaster;
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -67,9 +66,14 @@ public class DiskUsageService  extends Service {
         timer.schedule(new TimerTask(){
         @Override
             public void run() {
-                long time_idle=0; //measures time between the last activity logged and the current time.
+
+            long time_idle=0; //measures time between the last activity logged and the current time.
                 try {
-                    time_idle =  Calendar.getInstance().getTime().getTime() - format.parse(Log_OC.last_action_timestamp).getTime();
+                    if (Log_OC.getLast_action_timestamp() != null) {
+                        time_idle = Calendar.getInstance().getTime().getTime() - format.parse(Log_OC.getLast_action_timestamp()).getTime();
+                    } else {
+                        Log.d(TAG,"Last Action time cannot be determined");
+                    }
                 }
                 catch (Exception e){
                     Log.e(TAG,"Could not calculate time difference");
@@ -86,7 +90,7 @@ public class DiskUsageService  extends Service {
                     }
                 }
             }
-        },10,PRECISION_SECONDS*1000);
+        },0,PRECISION_SECONDS*1000);
     }
     public void notifyDiskDisconnected() {
         final Intent intent = new Intent(DiskUsageService.this,FileDisplayActivity.class);
