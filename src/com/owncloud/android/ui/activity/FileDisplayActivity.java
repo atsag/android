@@ -106,6 +106,8 @@ import java.util.TimerTask;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.owncloud.android.db.PreferenceManager.getSortOrder;
+
 /**
  * Displays, what files the user has available in his ownCloud. This is the main view.
  */
